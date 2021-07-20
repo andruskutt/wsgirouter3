@@ -408,3 +408,23 @@ def test_wsgi_application_head_method():
 
     env = {'REQUEST_METHOD': 'HEAD', 'PATH_INFO': url}
     assert app(env, start_response) == (b'',)
+
+
+def test_wsgi_application_generator_head_method():
+    url = '/url'
+    env = {'REQUEST_METHOD': 'HEAD', 'PATH_INFO': url}
+
+    def endpoint(req):
+        i = 0
+        while i < 5:
+            yield str(i)
+            i += 1
+
+    router = PathRouter()
+    router.add_route(url, ('GET', 'HEAD'), endpoint)
+    app = WsgiApp(router)
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == b''

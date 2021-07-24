@@ -285,6 +285,29 @@ def test_path_parameter_defaults():
     r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string'})
 
 
+def test_overlapping_path_segments():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def handler(req, variable: str):
+        pass
+
+    # route url, example request url, parameters from url, defaults
+    paths = (
+        ('/prefix', None, {}, {'variable': None}),
+        ('/prefix/literal', None, {}, {'variable': 'something'}),
+        ('/prefix/literal2', None, {}, {'variable': 'sonethingelse'}),
+        ('/prefix/{variable}', '/prefix/value', {'variable': 'value'}, None),
+    )
+    for route, _, _, defaults in paths:
+        r.add_route(route, methods, handler, defaults=defaults)
+
+    for route, url, args, defaults in paths:
+        environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': (url or route)}
+        assert r(environ) == handler
+        assert environ[r.routing_args_key] == ((), {**args, **(defaults or {})})
+
+
 def test_prefix_matching_router():
     def handler(req: str):
         pass

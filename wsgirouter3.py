@@ -17,7 +17,7 @@ from urllib.parse import parse_qs
 __all__ = [
     'ROUTE_OPTIONS_KEY', 'ROUTE_PATH_KEY', 'ROUTE_ROUTING_ARGS_KEY',
     'HTTPError', 'MethodNotAllowedError', 'NotFoundError',
-    'PathPrefixMatchingRouter', 'PathRouter',
+    'PathPrefixMatchingRouter', 'PathRouter', 'PathParameter',
     'Request', 'WsgiApp', 'WsgiAppConfig'
 ]
 

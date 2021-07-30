@@ -1,5 +1,7 @@
 """Tests for routing functionality."""
 
+from typing import Optional
+
 import pytest
 
 from wsgirouter3 import MethodNotAllowedError, NotFoundError, PathPrefixMatchingRouter, PathRouter
@@ -101,6 +103,20 @@ def test_int_routes():
     environ['PATH_INFO'] = '/jkl/mismatch'
     with pytest.raises(NotFoundError):
         r(environ)
+
+
+def test_optional_routes():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def handler(req: Optional[int]):
+        pass
+
+    r.add_route('/{req}', methods, handler)
+
+    environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/123'}
+    assert r(environ) == handler
+    assert environ.get(r.routing_args_key) == ((), {'req': 123})
 
 
 def test_add_bad_routes():

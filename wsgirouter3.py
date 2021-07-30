@@ -5,6 +5,7 @@ import inspect
 import io
 import json
 import logging
+import typing
 from dataclasses import dataclass, is_dataclass
 from functools import cached_property
 from http import HTTPStatus
@@ -52,6 +53,8 @@ _SIGNATURE_ALLOWED_PARAMETER_KINDS = (inspect.Parameter.KEYWORD_ONLY, inspect.Pa
 
 _BOOL_TRUE_VALUES = frozenset(('1', 'true', 'yes', 'on'))
 _BOOL_VALUES = frozenset(frozenset(('0', 'false', 'no', 'off')) | _BOOL_TRUE_VALUES)
+
+_NONE_TYPE = type(None)
 
 _NO_ENDPOINT_DEFAULTS = {}
 _NO_POSITIONAL_ARGS = ()
@@ -471,6 +474,13 @@ class PathRouter:
         annotation = parameter_signature.annotation
         if annotation == inspect.Parameter.empty:
             raise ValueError(f'{route_path}: path parameter {parameter_name} missing type annotation')
+
+        # unwrap possible Optional[x]/Union[x, None]
+        origin = typing.get_origin(annotation)
+        if origin is Union:
+            union_args = typing.get_args(annotation)
+            if len(union_args) == 2 and union_args[1] is _NONE_TYPE:
+                annotation = union_args[0]
 
         try:
             factory = self.parameter_types[annotation]

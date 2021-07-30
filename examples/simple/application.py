@@ -34,7 +34,12 @@ def put_with_id(request: Request, id: Optional[int]) -> dict:
 # to get HEAD method support, just list it in methods
 @router.route('/get_or_head', methods=('GET', 'HEAD'))
 def get_or_head(request: Request) -> dict:
-    return request.environ
+    # remove values not supported by default json serialization
+    result = {**request.environ}
+    result.pop('wsgi.file_wrapper', None)
+    result.pop('wsgi.input', None)
+    result.pop('wsgi.errors', None)
+    return result
 
 
 # handler gets wsgi environ wrapper as first parameter

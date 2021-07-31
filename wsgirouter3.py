@@ -49,6 +49,7 @@ _STATUS_ROW_MAP = {s.value: f'{s} {s.phrase}' for s in HTTPStatus}
 
 _PATH_SEPARATOR = '/'
 
+_SIGNATURE_CONTEXT_PARAMETER_KINDS = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
 _SIGNATURE_ALLOWED_PARAMETER_KINDS = (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
 
 _BOOL_TRUE_VALUES = frozenset(('1', 'true', 'yes', 'on'))
@@ -414,12 +415,32 @@ class PathRouter:
             raise ValueError(f'{route_path}: no methods defined')
 
         signature = inspect.signature(handler)
-        entry = self.parse_route_path(route_path, signature) if route_path != _PATH_SEPARATOR else self.root
+        entry, parameter_names = self.parse_route_path(route_path, signature)
+
+        handler_parameters = list(signature.parameters.values())
+        if not handler_parameters:
+            raise ValueError(f'{route_path}: missing context parameter')
+
+        # skip first parameter (request handling context)
+        context_parameter = handler_parameters.pop(0)
+        if context_parameter.kind not in _SIGNATURE_CONTEXT_PARAMETER_KINDS:
+            raise ValueError(f'{route_path}: incompatible context parameter {context_parameter.name}')
+
         if defaults is not None:
-            compatible = {n for n, p in signature.parameters.items() if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
-            missing = frozenset(defaults) - compatible
-            if missing:
-                raise ValueError(f'{route_path}: defaults {", ".join(missing)} cannot used as keyword arguments')
+            compatible = {p.name for p in handler_parameters if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
+            incompatible = frozenset(defaults) - compatible
+            if incompatible:
+                raise ValueError(f'{route_path}: defaults {", ".join(incompatible)} cannot used as parameters')
+
+        # check that all handler parameters are set or have default values
+        required_parameters = {p.name for p in handler_parameters
+                               if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS and p.default is inspect.Parameter.empty}
+
+        missing_parameters = required_parameters - parameter_names
+        if defaults is not None:
+            missing_parameters = missing_parameters - defaults.keys()
+        if missing_parameters:
+            raise ValueError(f'{route_path}: parameters {", ".join(missing_parameters)} are not initialized')
 
         existing = set(methods) & entry.methodmap.keys()
         if existing:
@@ -428,9 +449,13 @@ class PathRouter:
         route_options = self.default_options if options is None else options
         entry.add_endpoint(methods, Endpoint(handler, defaults, route_options, route_path))
 
-    def parse_route_path(self, route_path: str, signature) -> PathEntry:
+    def parse_route_path(self, route_path: str, signature) -> Tuple[PathEntry, set]:
         entry = self.root
         parameter_names = set()
+
+        if route_path == _PATH_SEPARATOR:
+            return entry, parameter_names
+
         for rp in _split_route_path(route_path):
             if not rp:
                 raise ValueError(f'{route_path}: missing path segment')
@@ -445,8 +470,8 @@ class PathRouter:
                         raise ValueError(f'{route_path}: duplicate path parameter {parameter_name}')
 
                     entry.parameter = factory(parameter_name)
-                    parameter_names.add(parameter_name)
 
+                parameter_names.add(parameter_name)
                 entry = entry.parameter
             else:
                 mappingentry = entry.mapping.get(rp)
@@ -455,7 +480,7 @@ class PathRouter:
 
                 entry = mappingentry
 
-        return entry
+        return entry, parameter_names
 
     def parse_parameter(self, parameter: str, route_path: str, signature: inspect.Signature) -> Tuple[Callable, str]:
         suffix_length = -len(self.path_parameter_end) if self.path_parameter_end else None

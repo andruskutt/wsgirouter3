@@ -119,6 +119,23 @@ def test_optional_routes():
     assert environ.get(r.routing_args_key) == ((), {'req': 123})
 
 
+def test_bad_handler():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def handler_without_context():
+        pass
+
+    with pytest.raises(ValueError, match='missing context parameter'):
+        r.add_route('/', methods, handler_without_context)
+
+    def handler_keyword_only_context(*, ctx):
+        pass
+
+    with pytest.raises(ValueError, match='incompatible context parameter'):
+        r.add_route('/', methods, handler_keyword_only_context)
+
+
 def test_add_bad_routes():
     r = PathRouter()
     url = '/'
@@ -288,17 +305,21 @@ def test_path_parameter_defaults():
     def handler(req, str_param: str, int_param: int, bool_param: bool, **kwargs):
         pass
 
-    with pytest.raises(ValueError, match='cannot used as keyword arguments'):
+    with pytest.raises(ValueError, match='cannot used as parameters'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'missing': 'not there'})
 
-    with pytest.raises(ValueError, match='cannot used as keyword arguments'):
+    with pytest.raises(ValueError, match='cannot used as parameters'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'missing': 'not there',
                                                                             'int_param': 123})
 
-    with pytest.raises(ValueError, match='cannot used as keyword arguments'):
+    with pytest.raises(ValueError, match='cannot used as parameters'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'kwargs': 'kwargs is filtered out'})
 
-    r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string'})
+    with pytest.raises(ValueError, match='are not initialized'):
+        r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string'})
+
+    r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string',
+                                                                        'bool_param': False})
 
 
 def test_overlapping_path_segments():

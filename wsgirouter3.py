@@ -7,13 +7,11 @@ import json
 import logging
 import typing
 from dataclasses import dataclass, is_dataclass
-from functools import cached_property
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Type, Union
 from urllib.parse import parse_qs
-
 
 __all__ = [
     'ROUTE_OPTIONS_KEY', 'ROUTE_PATH_KEY', 'ROUTE_ROUTING_ARGS_KEY',
@@ -61,6 +59,37 @@ _NO_ENDPOINT_DEFAULTS = {}
 _NO_POSITIONAL_ARGS = ()
 
 _logger = logging.getLogger('wsgirouter')
+
+
+class cached_property:  # noqa: N801
+    """
+    Cached property implementation.
+
+    Implementation without locking, see: https://bugs.python.org/issue43468
+    """
+
+    def __init__(self, func):
+        self.func = func
+        self.attrname = None
+        self.__doc__ = func.__doc__
+
+    def __set_name__(self, owner, name):
+        if self.attrname is None:
+            self.attrname = name
+        elif name != self.attrname:
+            raise TypeError(
+                f'Cannot assign the same cached_property to two different names ({self.attrname!r} and {name!r}).'
+            )
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        if self.attrname is None:
+            raise TypeError('Cannot use cached_property instance without calling __set_name__ on it.')
+
+        value = self.func(instance)
+        instance.__dict__[self.attrname] = value
+        return value
 
 
 class HTTPError(Exception):

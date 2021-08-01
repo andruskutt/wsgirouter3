@@ -33,4 +33,4 @@ def parametrized(req, variable: str):
 
 ## python 3.7
 
-Monkeypatching of functools and typing modules is required. See [tests/conftest.py](tests/conftest.py)
+Monkeypatching of typing module is required. See [tests/conftest.py](tests/conftest.py)

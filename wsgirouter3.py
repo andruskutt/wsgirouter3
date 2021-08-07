@@ -6,7 +6,7 @@ import io
 import json
 import logging
 import typing
-from dataclasses import dataclass, is_dataclass
+from dataclasses import asdict as dataclass_asdict, dataclass, field, is_dataclass
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
@@ -197,7 +197,27 @@ class Request:
         return header.split(';', 1)[0].strip().lower() if header else None
 
 
-def _default_result_converter(config: 'WsgiAppConfig', environ: dict, result) -> Tuple[int, Iterable, dict]:
+def _default_json_handler(config: 'WsgiAppConfig', result, headers: dict) -> Iterable:
+    # https://tools.ietf.org/html/rfc8259#section-8.1
+    response = json.dumps(result, cls=config.json_encoder).encode('utf-8')
+    headers[_CONTENT_TYPE_HEADER] = _CONTENT_TYPE_APPLICATION_JSON
+    headers[_CONTENT_LENGTH_HEADER] = str(len(response))
+    return response,
+
+
+def _custom_result_handler(config: 'WsgiAppConfig', result, headers: dict) -> Iterable:
+    for matcher, handler in config.result_converters:
+        if matcher(result):
+            return handler(result, headers)
+
+    # dataclass is json if not overridden by custom converter
+    if not is_dataclass(result):
+        raise ValueError(f'Unknown result {result}')
+
+    return _default_json_handler(config, dataclass_asdict(result), headers)
+
+
+def _default_result_handler(config: 'WsgiAppConfig', environ: dict, result) -> Tuple[int, Iterable, dict]:
     status = HTTPStatus.OK
     headers = {}
     if isinstance(result, tuple):
@@ -217,11 +237,8 @@ def _default_result_converter(config: 'WsgiAppConfig', environ: dict, result) ->
             raise ValueError(f'Unexpected result {result} for {status.phrase} response')
 
         result = _NO_DATA_RESULT
-    elif isinstance(result, dict) or is_dataclass(result):
-        # https://tools.ietf.org/html/rfc4627
-        result = json.dumps(result, cls=config.json_encoder).encode('utf-8'),
-        headers[_CONTENT_TYPE_HEADER] = _CONTENT_TYPE_APPLICATION_JSON
-        headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
+    elif isinstance(result, dict):
+        result = _default_json_handler(config, result, headers)
     elif isinstance(result, bytes):
         if _CONTENT_TYPE_HEADER not in headers:
             raise ValueError('Unknown content type for binary result')
@@ -235,7 +252,7 @@ def _default_result_converter(config: 'WsgiAppConfig', environ: dict, result) ->
         result = result.encode('utf-8'),
         headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
     elif not isinstance(result, GeneratorType):
-        raise ValueError(f'Unknown result {result}')
+        result = _custom_result_handler(config, result, headers)
 
     return status, result, headers
 
@@ -256,8 +273,9 @@ class WsgiAppConfig:
     before_request: Optional[Callable[[Any], None]] = None
     after_request: Optional[Callable[[int, dict, dict], None]] = None
     request_factory: Callable[['WsgiAppConfig', dict], Any] = Request
-    result_converter: Callable[['WsgiAppConfig', dict, Any],
-                               Tuple[int, Iterable, dict]] = staticmethod(_default_result_converter)
+    result_handler: Callable[['WsgiAppConfig', dict, Any],
+                             Tuple[int, Iterable, dict]] = staticmethod(_default_result_handler)
+    result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     error_handler: Callable[['WsgiAppConfig', dict, Exception], Any] = staticmethod(_default_error_handler)
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
 
@@ -283,7 +301,7 @@ class WsgiApp:
             result = self.config.error_handler(self.config, environ, exc)
 
         # XXX error handling for result conversion and after request hook
-        status, result, response_headers = self.config.result_converter(self.config, environ, result)
+        status, result, response_headers = self.config.result_handler(self.config, environ, result)
 
         after_request = self.config.after_request
         if after_request is not None:

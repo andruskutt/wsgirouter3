@@ -19,14 +19,6 @@ class JSONDecoder(json.JSONDecoder):
         super().__init__(parse_float=decimal.Decimal)
 
 
-class JSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if dataclasses.is_dataclass(o):
-            return dataclasses.asdict(o)
-
-        return json.JSONEncoder.default(self, o)
-
-
 @dataclasses.dataclass
 class Sample:
     i: int
@@ -199,40 +191,41 @@ def test_request_bad_json():
 
 
 def test_response_conversion():
+    conf = wsgirouter3.WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
     no_content = (HTTPStatus.NO_CONTENT, (b'',), {})
-    assert wsgirouter3._default_result_converter(None, env, (HTTPStatus.NO_CONTENT,)) == no_content
-    assert wsgirouter3._default_result_converter(None, env, (HTTPStatus.NO_CONTENT, None, ())) == no_content
+    assert wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT,)) == no_content
+    assert wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT, None, ())) == no_content
 
     # int as status is same as HTTPStatus
     with_headers = (HTTPStatus.NO_CONTENT, (b'',), {'header': 'val'})
-    assert wsgirouter3._default_result_converter(None, env, (204, None, with_headers[2])) == with_headers
+    assert wsgirouter3._default_result_handler(conf, env, (204, None, with_headers[2])) == with_headers
 
     with_headers = (HTTPStatus.NO_CONTENT, (b'',), {'header': 'val'})
-    assert wsgirouter3._default_result_converter(
-        None,
+    assert wsgirouter3._default_result_handler(
+        conf,
         env,
         (HTTPStatus.NO_CONTENT, None, with_headers[2])
     ) == with_headers
 
     text_headers = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain', 'Content-Length': '5'})
-    assert wsgirouter3._default_result_converter(None, env, 'blaah') == text_headers
+    assert wsgirouter3._default_result_handler(conf, env, 'blaah') == text_headers
 
     with pytest.raises(ValueError, match='Invalid result tuple'):
-        wsgirouter3._default_result_converter(None, env, ())
+        wsgirouter3._default_result_handler(conf, env, ())
 
     with pytest.raises(ValueError, match='Unexpected result'):
-        wsgirouter3._default_result_converter(None, env, (HTTPStatus.NO_CONTENT, b'1234'))
+        wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT, b'1234'))
 
     with pytest.raises(ValueError, match='Invalid type of status'):
-        wsgirouter3._default_result_converter(None, env, ('123 Wrong status',))
+        wsgirouter3._default_result_handler(conf, env, ('123 Wrong status',))
 
     with pytest.raises(ValueError, match='Unknown content type for binary result'):
-        wsgirouter3._default_result_converter(None, env, b'1234')
+        wsgirouter3._default_result_handler(conf, env, b'1234')
 
     with_headers = (HTTPStatus.OK, b'1234', {'Content-Type': 'octet/stream'})
-    assert wsgirouter3._default_result_converter(
-        None,
+    assert wsgirouter3._default_result_handler(
+        conf,
         env,
         with_headers
     ) == (
@@ -242,7 +235,7 @@ def test_response_conversion():
     )
 
     with pytest.raises(ValueError, match='Unknown result'):
-        wsgirouter3._default_result_converter(None, env, True)
+        wsgirouter3._default_result_handler(conf, env, True)
 
 
 def test_dataclass_response():
@@ -253,8 +246,6 @@ def test_dataclass_response():
     router = PathRouter()
     router.add_route(url, ('GET',), lambda req: response)
     app = WsgiApp(router)
-    # dataclass requires support in json encoder
-    app.config.json_encoder = JSONEncoder
 
     def start_response(status, headers):
         pass
@@ -274,7 +265,7 @@ def test_generator_response():
 
     g = generator()
     # generator is passed as is
-    assert wsgirouter3._default_result_converter(None, env, g) == (HTTPStatus.OK, g, {})
+    assert wsgirouter3._default_result_handler(None, env, g) == (HTTPStatus.OK, g, {})
 
     def endpoint(req):
         return generator()
@@ -287,6 +278,34 @@ def test_generator_response():
         pass
 
     assert ''.join(app(env, start_response)) == '01234'
+
+
+def test_custom_response():
+    url = '/url'
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
+    result = b'12346'
+
+    @dataclasses.dataclass
+    class Custom:
+        data: bytes
+
+    router = PathRouter()
+
+    @router.route(url, ('GET',))
+    def endpoint(req):
+        return (200, Custom(result))
+
+    def result_converter(result: Custom, headers: dict):
+        headers['Content-Length'] = str(len(result.data))
+        return result.data,
+
+    app = WsgiApp(router)
+    app.config.result_converters.append((lambda result: isinstance(result, Custom), result_converter))
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == result
 
 
 def test_hooks():

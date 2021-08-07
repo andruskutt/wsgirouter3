@@ -428,3 +428,36 @@ def test_wsgi_application_generator_head_method():
         pass
 
     assert b''.join(app(env, start_response)) == b''
+
+
+def test_cached_property():
+    calc1_called = 0
+
+    class A:
+        @wsgirouter3.cached_property
+        def calc1(self):
+            nonlocal calc1_called
+            calc1_called += 1
+            return 42
+
+    # try to abuse descriptor protocol
+    a = A.calc1
+    assert isinstance(a, wsgirouter3.cached_property)
+
+    a = A()
+    for _ in range(3):
+        assert a.calc1 == 42
+    assert calc1_called == 1
+
+    with pytest.raises(RuntimeError, match='Error calling __set_name__') as exc:
+        class B:
+            calc2 = A.calc1
+
+    assert isinstance(exc.value.__cause__, TypeError)
+
+    def calc():
+        return 42
+
+    p = wsgirouter3.cached_property(calc)
+    with pytest.raises(TypeError, match='annot use cached_property instance without calling __set_name__'):
+        p.__get__(A())

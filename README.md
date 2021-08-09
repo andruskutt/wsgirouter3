@@ -31,6 +31,20 @@ def parametrized(req, variable: str):
     pass
 ```
 
+Content negotiation:
+
+```python
+@router.route('/get', methods=('GET',), produces='application/json')
+def get(req) -> dict:
+    return {'field': 'value'}
+
+@router.route('/post', methods=('POST',), consumes='application/json')
+def post_with_json(req) -> Tuple[int]:
+    data = req.json
+    return 204,
+```
+
+
 ## python 3.7
 
 Monkeypatching of typing module is required. See [tests/conftest.py](tests/conftest.py)

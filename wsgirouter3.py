@@ -10,7 +10,7 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
 from urllib.parse import parse_qs
 
 __all__ = [
@@ -29,6 +29,7 @@ _CONTENT_TYPE_HEADER = 'Content-Type'
 _CONTENT_TYPE_APPLICATION_JSON = 'application/json'
 _CONTENT_TYPE_MULTIPART_FORM_DATA = 'multipart/form-data'
 
+_WSGI_ACCEPT_HEADER = 'HTTP_ACCEPT'
 _WSGI_CONTENT_LENGTH_HEADER = 'CONTENT_LENGTH'
 _WSGI_CONTENT_TYPE_HEADER = 'CONTENT_TYPE'
 _WSGI_PATH_INFO_HEADER = 'PATH_INFO'
@@ -128,7 +129,7 @@ class Request:
     @cached_property
     def content_type(self) -> Optional[str]:
         # rfc3875 media-type parts type / subtype are case-insensitive
-        return self._parse_header(self.environ.get(_WSGI_CONTENT_TYPE_HEADER))
+        return _parse_header(self.environ.get(_WSGI_CONTENT_TYPE_HEADER))
 
     @cached_property
     def cookies(self) -> SimpleCookie:
@@ -191,10 +192,6 @@ class Request:
     @cached_property
     def method(self) -> str:
         return self.environ[_WSGI_REQUEST_METHOD_HEADER]
-
-    def _parse_header(self, header: Optional[str]) -> Optional[str]:
-        # pretend all header values are case-insensitive
-        return header.split(';', 1)[0].strip().lower() if header else None
 
 
 def _default_json_handler(config: 'WsgiAppConfig', result, headers: dict) -> Iterable:
@@ -319,13 +316,16 @@ class WsgiApp:
 
 
 class Endpoint:
-    __slots__ = ('handler', 'defaults', 'options', 'route_path')
+    __slots__ = ('handler', 'defaults', 'options', 'route_path', 'consumes', 'produces')
 
-    def __init__(self, handler: Callable, defaults: Optional[dict], options: Any, route_path: str) -> None:
+    def __init__(self, handler: Callable, defaults: Optional[dict], options: Any, route_path: str,
+                 consumes: Optional[str], produces: Optional[str]) -> None:
         self.handler = handler
         self.defaults = dict(defaults) if defaults else _NO_ENDPOINT_DEFAULTS
         self.options = options
         self.route_path = route_path
+        self.consumes = consumes
+        self.produces = produces
 
 
 class PathEntry:
@@ -427,27 +427,49 @@ class PathRouter:
             except KeyError:
                 raise NotFoundError(route_path) from None
 
-        method = environ[_WSGI_REQUEST_METHOD_HEADER]
-        try:
-            endpoint = entry.methodmap[method]
-        except KeyError:
-            endpoint = self.handle_unknown_method(environ, entry)
+        endpoint = self.negotiate_content(environ, entry)
 
         environ[self.options_key] = endpoint.options
         environ[self.path_key] = endpoint.route_path
         environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, {**endpoint.defaults, **kwargs})
         return endpoint.handler
 
-    def handle_unknown_method(self, environ: Dict[str, Any], entry: PathEntry) -> NoReturn:
-        raise MethodNotAllowedError(tuple(entry.methodmap.keys())) from None
+    def negotiate_content(self, environ: Dict[str, Any], entry: PathEntry) -> Endpoint:
+        method = environ[_WSGI_REQUEST_METHOD_HEADER]
+        try:
+            endpoint = entry.methodmap[method]
+        except KeyError:
+            raise MethodNotAllowedError(tuple(entry.methodmap.keys())) from None
+
+        required_content_type = endpoint.consumes
+        if required_content_type:
+            actual_content_type = _parse_header(environ.get(_WSGI_CONTENT_TYPE_HEADER))
+            if actual_content_type != required_content_type:
+                raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+
+        accepted_media_ranges = environ.get(_WSGI_ACCEPT_HEADER)
+        if accepted_media_ranges:
+            response_content_type = endpoint.produces
+            if response_content_type:
+                for ct in accepted_media_ranges.split(','):
+                    media_range = _parse_header(ct.lstrip())
+                    # XXX partial media range support: type/*
+                    if response_content_type == media_range or media_range == '*/*':
+                        break
+                else:
+                    raise HTTPError(HTTPStatus.NOT_ACCEPTABLE)
+
+        return endpoint
 
     def route(self,
               route_path: str,
               methods: Iterable[str],
               defaults: Optional[dict] = None,
-              options: Any = None):
+              options: Any = None,
+              consumes: Optional[str] = None,
+              produces: Optional[str] = None) -> Callable:
         def wrapper(handler):
-            self.add_route(route_path, methods, handler, defaults, options)
+            self.add_route(route_path, methods, handler, defaults, options, consumes, produces)
             return handler
 
         return wrapper
@@ -457,7 +479,9 @@ class PathRouter:
                   methods: Iterable[str],
                   handler: Callable,
                   defaults: Optional[dict] = None,
-                  options: Any = None) -> None:
+                  options: Any = None,
+                  consumes: Optional[str] = None,
+                  produces: Optional[str] = None) -> None:
         if not methods:
             raise ValueError(f'{route_path}: no methods defined')
 
@@ -494,7 +518,7 @@ class PathRouter:
             raise ValueError(f'{route_path}: redefinition of handler for method(s) {", ".join(existing)}')
 
         route_options = self.default_options if options is None else options
-        entry.add_endpoint(methods, Endpoint(handler, defaults, route_options, route_path))
+        entry.add_endpoint(methods, Endpoint(handler, defaults, route_options, route_path, consumes, produces))
 
     def parse_route_path(self, route_path: str, signature) -> Tuple[PathEntry, set]:
         entry = self.root
@@ -595,6 +619,11 @@ class PathPrefixMatchingRouter:
     def add_route_mapping(self, mapping: Dict[str, Callable]) -> None:
         for prefix, handler in mapping.items():
             self.add_route(prefix, handler)
+
+
+def _parse_header(header: Optional[str]) -> Optional[str]:
+    # pretend all header values are case-insensitive
+    return header.split(';', 1)[0].strip().lower() if header else None
 
 
 def _split_route_path(route_path: str) -> list:

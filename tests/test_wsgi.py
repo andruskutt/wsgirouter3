@@ -190,10 +190,11 @@ def test_request_bad_json():
     assert exc_info.value.args[0] == HTTPStatus.BAD_REQUEST
 
 
-def test_response_conversion():
+def test_response_conversion_tuple():
     conf = wsgirouter3.WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
     no_content = (HTTPStatus.NO_CONTENT, (b'',), {})
+
     assert wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT,)) == no_content
     assert wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT, None, ())) == no_content
 
@@ -208,8 +209,34 @@ def test_response_conversion():
         (HTTPStatus.NO_CONTENT, None, with_headers[2])
     ) == with_headers
 
+
+def test_response_conversion_text():
+    conf = wsgirouter3.WsgiAppConfig()
+    env = {'REQUEST_METHOD': 'GET'}
+
     text_headers = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain;charset=utf-8', 'Content-Length': '5'})
     assert wsgirouter3._default_result_handler(conf, env, 'blaah') == text_headers
+
+
+def test_response_conversion_binary():
+    conf = wsgirouter3.WsgiAppConfig()
+    env = {'REQUEST_METHOD': 'GET'}
+
+    with_headers = (HTTPStatus.OK, b'1234', {'Content-Type': 'octet/stream'})
+    assert wsgirouter3._default_result_handler(
+        conf,
+        env,
+        with_headers
+    ) == (
+        with_headers[0],
+        (with_headers[1],),
+        {'Content-Type': 'octet/stream', 'Content-Length': '4'}
+    )
+
+
+def test_response_conversion_invalid():
+    conf = wsgirouter3.WsgiAppConfig()
+    env = {'REQUEST_METHOD': 'GET'}
 
     with pytest.raises(ValueError, match='Invalid result tuple'):
         wsgirouter3._default_result_handler(conf, env, ())
@@ -222,17 +249,6 @@ def test_response_conversion():
 
     with pytest.raises(ValueError, match='Unknown content type for binary result'):
         wsgirouter3._default_result_handler(conf, env, b'1234')
-
-    with_headers = (HTTPStatus.OK, b'1234', {'Content-Type': 'octet/stream'})
-    assert wsgirouter3._default_result_handler(
-        conf,
-        env,
-        with_headers
-    ) == (
-        with_headers[0],
-        (with_headers[1],),
-        {'Content-Type': 'octet/stream', 'Content-Length': '4'}
-    )
 
     with pytest.raises(ValueError, match='Unknown result'):
         wsgirouter3._default_result_handler(conf, env, True)
@@ -306,6 +322,65 @@ def test_custom_response():
         pass
 
     assert b''.join(app(env, start_response)) == result
+
+
+def test_request_content_negotiation():
+    text_url = '/url/text'
+    json_url = '/url/json'
+    json_bytes = b'{"A": 1, "D": 0.1}'
+    content = {
+        'CONTENT_TYPE': 'application/json',
+        'wsgi.input': io.BytesIO(json_bytes),
+        'CONTENT_LENGTH': f'{len(json_bytes)}',
+    }
+
+    router = PathRouter()
+
+    @router.route(text_url, ('GET',), consumes='text/plain')
+    def text_endpoint(req):
+        return (204,)
+
+    @router.route(json_url, ('GET',), consumes='application/json')
+    def json_endpoint(req):
+        return (204,)
+
+    app = WsgiApp(router)
+    returned_status = None
+
+    def start_response(status, headers):
+        nonlocal returned_status
+        returned_status = status
+
+    app({'REQUEST_METHOD': 'GET', 'PATH_INFO': text_url, **content}, start_response)
+    assert returned_status == '415 Unsupported Media Type'
+    app({'REQUEST_METHOD': 'GET', 'PATH_INFO': json_url, **content}, start_response)
+    assert returned_status == '204 No Content'
+
+
+def test_response_content_negotiation():
+    url = '/url'
+    router = PathRouter()
+
+    @router.route(url, ('GET',), produces='application/json')
+    def json_endpoint(req) -> dict:
+        return {'a': 1}
+
+    app = WsgiApp(router)
+    returned_status = None
+
+    def start_response(status, headers):
+        nonlocal returned_status
+        returned_status = status
+
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
+    app({**env, 'HTTP_ACCEPT': 'text/plain'}, start_response)
+    assert returned_status == '406 Not Acceptable'
+    app({**env, 'HTTP_ACCEPT': 'application/json'}, start_response)
+    assert returned_status == '200 OK'
+    app({**env, 'HTTP_ACCEPT': '*/*'}, start_response)
+    assert returned_status == '200 OK'
+    app(env, start_response)
+    assert returned_status == '200 OK'
 
 
 def test_hooks():

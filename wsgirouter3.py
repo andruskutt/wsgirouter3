@@ -198,8 +198,8 @@ class Request:
 
 
 def _default_json_handler(config: 'WsgiAppConfig', result, headers: dict) -> Iterable:
-    # https://tools.ietf.org/html/rfc8259#section-8.1
-    response = json.dumps(result, cls=config.json_encoder).encode('utf-8')
+    # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
+    response = json.dumps(result, cls=config.json_encoder).encode()
     headers[_CONTENT_TYPE_HEADER] = _CONTENT_TYPE_APPLICATION_JSON
     headers[_CONTENT_LENGTH_HEADER] = str(len(response))
     return response,
@@ -247,9 +247,9 @@ def _default_result_handler(config: 'WsgiAppConfig', environ: dict, result) -> T
         headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
     elif isinstance(result, str):
         if _CONTENT_TYPE_HEADER not in headers:
-            headers[_CONTENT_TYPE_HEADER] = 'text/plain'
+            headers[_CONTENT_TYPE_HEADER] = 'text/plain;charset=utf-8'
 
-        result = result.encode('utf-8'),
+        result = result.encode(),
         headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
     elif not isinstance(result, GeneratorType):
         result = _custom_result_handler(config, result, headers)
@@ -333,7 +333,7 @@ class PathEntry:
 
     def __init__(self) -> None:
         self.mapping: Dict[str, 'PathEntry'] = {}
-        self.parameter = None
+        self.parameter: Optional['PathParameter'] = None
         self.methodmap: Dict[str, Endpoint] = {}
 
     def __getitem__(self, route_path_item: str) -> 'PathEntry':

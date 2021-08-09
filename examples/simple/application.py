@@ -27,7 +27,7 @@ def post_with_id(request: Request, id: int) -> tuple:
 # multiple routes for same endpoint
 @router.route('/put', methods=('PUT',), defaults={'id': None})
 @router.route('/put/{id}', methods=('PUT',))
-def put_with_id(request: Request, id: Optional[int]) -> dict:
+def put_with_id(request: Request, id: Optional[int]) -> tuple:
     return HTTPStatus.NO_CONTENT,
 
 

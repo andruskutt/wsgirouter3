@@ -208,7 +208,7 @@ def test_response_conversion():
         (HTTPStatus.NO_CONTENT, None, with_headers[2])
     ) == with_headers
 
-    text_headers = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain', 'Content-Length': '5'})
+    text_headers = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain;charset=utf-8', 'Content-Length': '5'})
     assert wsgirouter3._default_result_handler(conf, env, 'blaah') == text_headers
 
     with pytest.raises(ValueError, match='Invalid result tuple'):
@@ -378,7 +378,7 @@ def test_wsgi_application():
     r.add_route(url, ('GET',), lambda req: {})
     app = WsgiApp(r)
     env = {'REQUEST_METHOD': 'POST', 'PATH_INFO': url}
-    assert app(env, start_response) == (HTTPStatus.METHOD_NOT_ALLOWED.description.encode('utf-8'),)
+    assert app(env, start_response) == (HTTPStatus.METHOD_NOT_ALLOWED.description.encode(),)
 
     def failinghandler(req):
         status = HTTPStatus.UNPROCESSABLE_ENTITY
@@ -390,7 +390,7 @@ def test_wsgi_application():
         return failinghandler
 
     app = WsgiApp(r)
-    assert app(env, start_response) == (HTTPStatus.UNPROCESSABLE_ENTITY.description.encode('utf-8'),)
+    assert app(env, start_response) == (HTTPStatus.UNPROCESSABLE_ENTITY.description.encode(),)
 
     def handlerwithruntimeerror(req):
         raise ValueError('Unexpected')
@@ -399,7 +399,7 @@ def test_wsgi_application():
         return handlerwithruntimeerror, {}
 
     app = WsgiApp(r2)
-    assert app(env, start_response) == (HTTPStatus.INTERNAL_SERVER_ERROR.description.encode('utf-8'),)
+    assert app(env, start_response) == (HTTPStatus.INTERNAL_SERVER_ERROR.description.encode(),)
 
 
 def test_wsgi_application_head_method():

@@ -1,4 +1,4 @@
-"""Authorization check example for wsgirouter3."""
+"""Authorization check example for wsgirouter3 using route options."""
 
 from http import HTTPStatus
 from wsgiref.simple_server import make_server
@@ -7,6 +7,7 @@ from wsgirouter3 import HTTPError, PathRouter, Request, WsgiApp
 
 
 router = PathRouter()
+# options can be anything, we use dict for simplicity
 _PUBLIC_ROUTE = {'authorization': False}
 
 
@@ -17,7 +18,7 @@ def secured_handler(request: Request) -> dict:
     return request.environ
 
 
-# public route as exception (options with flag)
+# public route as exceptional case (options with flag)
 @router.route('/public/get', methods=('GET',), options=_PUBLIC_ROUTE)
 def public_handler(request: Request) -> dict:
     # remove values not supported by default json serialization
@@ -31,7 +32,7 @@ def public_handler(request: Request) -> dict:
 def check_authorization(request: Request) -> None:
     options = request.environ[router.options_key]
     if not (isinstance(options, dict) and options.get('authorization') is False):
-        # TODO: check for authorization
+        # TODO: actual check for authorization
         raise HTTPError(HTTPStatus.UNAUTHORIZED, headers={'WWW-Authenticate': 'Bearer'})
 
 

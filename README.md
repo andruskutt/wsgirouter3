@@ -7,7 +7,7 @@ Works using path segments instead of more common regex matching (RFC 3986 path s
 Path variables are by default defined using RFC 6570 level 1 https://datatracker.ietf.org/doc/html/rfc6570#section-1.2 Start and optional end markers are customizable.
 Path variable types are defined using python typing information. Customizable, types supported out-of-box: bool, int, str.
 
-Request context (by default WSGI environ wrapper) is passed as handler's first positional parameter.
+Request context is passed as handler's first positional parameter. No global variables/threadlocals. Context factory is customizable, by default minimal WSGI environ wrapper.
 
 Supports overlapping path segments: zero or more literal segments with optional parameter. Parameters of different type in same position are not supported. Literal segment takes precedence.
 

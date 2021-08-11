@@ -1,4 +1,10 @@
-"""WSGI router."""
+"""
+WSGI router.
+
+Homepage: https://github.com/andruskutt/wsgirouter3
+
+License: MIT
+"""
 
 import cgi
 import inspect
@@ -44,7 +50,7 @@ _NO_DATA_RESULT = _NO_DATA_BODY,
 _STATUSES_WITHOUT_CONTENT = frozenset(
     (s for s in HTTPStatus if (s >= 100 and s < 200) or s in (HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED)),
 )
-_STATUS_ROW_MAP = {s.value: f'{s} {s.phrase}' for s in HTTPStatus}
+_STATUS_ROW_FROM_CODE = {s.value: f'{s} {s.phrase}' for s in HTTPStatus}
 
 _PATH_SEPARATOR = '/'
 
@@ -96,7 +102,7 @@ class cached_property:  # noqa: N801
 class HTTPError(Exception):
     def __init__(self, status: HTTPStatus, result=None, headers: Optional[dict] = None) -> None:
         self.status = status
-        self.result = status.description if result is None else result
+        self.result = status.description if result is None and status not in _STATUSES_WITHOUT_CONTENT else result
         self.headers = headers
 
 
@@ -194,7 +200,7 @@ class Request:
         return self.environ[_WSGI_REQUEST_METHOD_HEADER]
 
 
-def _default_json_handler(config: 'WsgiAppConfig', result, headers: dict) -> Iterable:
+def _json_result_handler(config: 'WsgiAppConfig', result, headers: dict) -> Tuple[bytes]:
     # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
     response = json.dumps(result, cls=config.json_encoder).encode()
     headers[_CONTENT_TYPE_HEADER] = _CONTENT_TYPE_APPLICATION_JSON
@@ -211,7 +217,7 @@ def _custom_result_handler(config: 'WsgiAppConfig', result, headers: dict) -> It
     if not is_dataclass(result):
         raise ValueError(f'Unknown result {result}')
 
-    return _default_json_handler(config, dataclass_asdict(result), headers)
+    return _json_result_handler(config, dataclass_asdict(result), headers)
 
 
 def _default_result_handler(config: 'WsgiAppConfig', environ: dict, result) -> Tuple[int, Iterable, dict]:
@@ -235,7 +241,7 @@ def _default_result_handler(config: 'WsgiAppConfig', environ: dict, result) -> T
 
         result = _NO_DATA_RESULT
     elif isinstance(result, dict):
-        result = _default_json_handler(config, result, headers)
+        result = _json_result_handler(config, result, headers)
     elif isinstance(result, bytes):
         if _CONTENT_TYPE_HEADER not in headers:
             raise ValueError('Unknown content type for binary result')
@@ -311,7 +317,7 @@ class WsgiApp:
                 result_close()
             result = _NO_DATA_RESULT
 
-        start_response(_STATUS_ROW_MAP[status], [*response_headers.items()])
+        start_response(_STATUS_ROW_FROM_CODE[status], [*response_headers.items()])
         return result
 
 

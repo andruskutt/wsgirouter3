@@ -9,7 +9,7 @@ Path variable types are defined using python typing information. Customizable, t
 
 Request context is passed as handler's first positional parameter. No global variables/threadlocals. Context factory is customizable, by default minimal WSGI environ wrapper.
 
-Supports overlapping path segments: zero or more literal segments with optional parameter. Parameters of different type in same position are not supported. Literal segment takes precedence.
+Supports overlapping path segments: zero or more literal segments with optional parameter. Parameters of different type and/or name in same position are not supported. Literal segment takes precedence.
 
 
 ```python
@@ -27,7 +27,7 @@ Multiple routes can point to same handler:
 ```python
 @router.route('/abc', methods=('GET',), defaults={'variable': None})
 @router.route('/abc/{variable}', methods=('GET',))
-def parametrized(req, variable: str):
+def parametrized(req, variable: Optional[str]):
     pass
 ```
 
@@ -44,6 +44,17 @@ def post_with_json(req) -> Tuple[int]:
     return 204,
 ```
 
+Return type handling:
+
+| Type | Description |
+| ---- | ----------- |
+| tuple | shortcut for returning status code and optional result + headers |
+| None | allowed for status codes which have no content |
+| dict | application/json |
+| str | defined by Content-Type header, text/plain;charset=utf-8 if header is not given |
+| bytes | defined by required Content-Type header |
+| dataclass | application/json, but overridable by custom result handler |
+| typing.GeneratorType | passed as is |
 
 ## python 3.7
 

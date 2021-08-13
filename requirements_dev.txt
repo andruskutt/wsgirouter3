@@ -2,6 +2,7 @@ flake8==3.9.2
 flake8-blind-except==0.2.0
 flake8-comprehensions==3.5.0
 flake8-docstrings==1.6.0
+flake8-file-encoding==0.1.0
 flake8-import-order==0.18.1
 flake8-pep3101==1.3.0
 flake8-quotes==3.2.0

@@ -555,3 +555,17 @@ def test_cached_property():
     p = wsgirouter3.cached_property(calc)
     with pytest.raises(TypeError, match='annot use cached_property instance without calling __set_name__'):
         p.__get__(A())
+
+
+def test_http_error():
+    e = HTTPError(HTTPStatus.NOT_FOUND)
+    assert e.status == 404
+    # result is automatically initialized
+    assert e.result == HTTPStatus.NOT_FOUND.description
+    assert e.headers is None
+
+    e = HTTPError(HTTPStatus.NO_CONTENT)
+    assert e.status == 204
+    # status without result, no automatic initialization
+    assert e.result is None
+    assert e.headers is None

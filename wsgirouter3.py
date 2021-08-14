@@ -17,7 +17,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
-from urllib.parse import parse_qs
+from urllib.parse import parse_qsl
 
 __all__ = [
     'ROUTE_OPTIONS_KEY', 'ROUTE_PATH_KEY', 'ROUTE_ROUTING_ARGS_KEY',
@@ -192,9 +192,12 @@ class Request:
             return {}
 
         try:
-            data = parse_qs(qs, strict_parsing=True)
-            # return single/first value for each parameter
-            return {k: v[0] for k, v in data.items()}
+            data = {}
+            # XXX return single/first value for each parameter only
+            for name, value in parse_qsl(qs, strict_parsing=True):
+                if name not in data:
+                    data[name] = value
+            return data
         except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 

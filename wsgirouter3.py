@@ -349,12 +349,12 @@ class PathEntry:
         self.parameter: Optional['PathParameter'] = None
         self.methodmap: Dict[str, Endpoint] = {}
 
-    def __getitem__(self, route_path_item: str) -> 'PathEntry':
-        handler = self.mapping.get(route_path_item)
+    def __getitem__(self, path_segment: str) -> 'PathEntry':
+        handler = self.mapping.get(path_segment)
         if handler is not None:
             return handler
 
-        if self.parameter is not None and self.parameter.match(route_path_item):
+        if self.parameter is not None and self.parameter.match(path_segment):
             return self.parameter
 
         # no match
@@ -374,11 +374,11 @@ class PathParameter(PathEntry):
 
 class BoolPathParameter(PathParameter):
 
-    def match(self, route_path_item: str) -> bool:
-        return route_path_item in _BOOL_VALUES
+    def match(self, path_segment: str) -> bool:
+        return path_segment in _BOOL_VALUES
 
-    def accept(self, kwargs: dict, route_path_item: str) -> None:
-        kwargs[self.name] = route_path_item in _BOOL_TRUE_VALUES
+    def accept(self, kwargs: dict, path_segment: str) -> None:
+        kwargs[self.name] = path_segment in _BOOL_TRUE_VALUES
 
 
 class IntPathParameter(PathParameter):
@@ -386,19 +386,19 @@ class IntPathParameter(PathParameter):
     def match(self, path_segment: str) -> bool:
         return bool(path_segment and (path_segment[1:] if path_segment[0] == '-' else path_segment).isdigit())
 
-    def accept(self, kwargs: dict, route_path_item: str) -> None:
-        kwargs[self.name] = int(route_path_item)
+    def accept(self, kwargs: dict, path_segment: str) -> None:
+        kwargs[self.name] = int(path_segment)
 
 
 class StringPathParameter(PathParameter):
 
-    def match(self, route_path_item: str) -> bool:
+    def match(self, path_segment: str) -> bool:
         # do not allow zero-length strings
-        return bool(route_path_item)
+        return bool(path_segment)
 
-    def accept(self, kwargs: dict, route_path_item: str) -> None:
+    def accept(self, kwargs: dict, path_segment: str) -> None:
         # XXX should decode path segment?
-        kwargs[self.name] = route_path_item
+        kwargs[self.name] = path_segment
 
 
 # duplicate definitions by PEP-563
@@ -433,10 +433,10 @@ class PathRouter:
         route_path = environ.get(_WSGI_PATH_INFO_HEADER)
         if route_path and route_path != _PATH_SEPARATOR:
             try:
-                for route_path_item in _split_route_path(route_path):
-                    entry = entry[route_path_item]
+                for path_segment in _split_route_path(route_path):
+                    entry = entry[path_segment]
                     if isinstance(entry, PathParameter):
-                        entry.accept(kwargs, route_path_item)
+                        entry.accept(kwargs, path_segment)
             except KeyError:
                 raise NotFoundError(route_path) from None
 
@@ -540,12 +540,12 @@ class PathRouter:
         if route_path == _PATH_SEPARATOR:
             return entry, parameter_names
 
-        for rp in _split_route_path(route_path):
-            if not rp:
+        for path_segment in _split_route_path(route_path):
+            if not path_segment:
                 raise ValueError(f'{route_path}: missing path segment')
-            elif rp.startswith(self.path_parameter_start):
+            elif path_segment.startswith(self.path_parameter_start):
                 # path parameter definition
-                factory, parameter_name = self.parse_parameter(rp, route_path, signature)
+                factory, parameter_name = self.parse_parameter(path_segment, route_path, signature)
                 if entry.parameter:
                     if not (isinstance(entry.parameter, factory) and entry.parameter.name == parameter_name):
                         raise ValueError(f'{route_path}: incompatible path parameter {parameter_name}')
@@ -558,9 +558,9 @@ class PathRouter:
                 parameter_names.add(parameter_name)
                 entry = entry.parameter
             else:
-                mappingentry = entry.mapping.get(rp)
+                mappingentry = entry.mapping.get(path_segment)
                 if mappingentry is None:
-                    entry.mapping[rp] = mappingentry = PathEntry()
+                    entry.mapping[path_segment] = mappingentry = PathEntry()
 
                 entry = mappingentry
 
@@ -640,5 +640,5 @@ def _parse_header(header: Optional[str]) -> Optional[str]:
 
 
 def _split_route_path(route_path: str) -> list:
-    route_path_parts = route_path.split(_PATH_SEPARATOR)
-    return route_path_parts[1:] if route_path.startswith(_PATH_SEPARATOR) else route_path_parts
+    path_segments = route_path.split(_PATH_SEPARATOR)
+    return path_segments[1:] if route_path.startswith(_PATH_SEPARATOR) else path_segments

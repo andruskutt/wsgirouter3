@@ -383,8 +383,8 @@ class BoolPathParameter(PathParameter):
 
 class IntPathParameter(PathParameter):
 
-    def match(self, route_path_item: str) -> bool:
-        return bool(route_path_item and route_path_item.isdigit())
+    def match(self, path_segment: str) -> bool:
+        return bool(path_segment and (path_segment[1:] if path_segment[0] == '-' else path_segment).isdigit())
 
     def accept(self, kwargs: dict, route_path_item: str) -> None:
         kwargs[self.name] = int(route_path_item)

@@ -88,9 +88,17 @@ def test_int_routes():
     assert r(environ) == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 456})
 
+    environ['PATH_INFO'] = '/-456/subpath'
+    assert r(environ) == handler
+    assert environ.get(r.routing_args_key) == ((), {'req': -456})
+
     environ['PATH_INFO'] = '/789'
     assert r(environ) == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 789})
+
+    environ['PATH_INFO'] = '/-789'
+    assert r(environ) == handler
+    assert environ.get(r.routing_args_key) == ((), {'req': -789})
 
     environ['PATH_INFO'] = '/abc'
     with pytest.raises(NotFoundError):

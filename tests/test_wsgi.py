@@ -82,6 +82,17 @@ def test_request_missing_content_length():
     assert exc_info.value.args[0] == HTTPStatus.LENGTH_REQUIRED
 
 
+def test_request_max_content_length():
+    conf = wsgirouter3.WsgiAppConfig()
+    conf.max_content_length = 1
+    env = {'CONTENT_LENGTH': '2'}
+    r = Request(conf, env)
+
+    with pytest.raises(HTTPError) as exc_info:
+        r.body
+    assert exc_info.value.args[0] == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+
+
 def test_request_body():
     env = {'REQUEST_METHOD': 'GET', 'CONTENT_LENGTH': '0'}
     r = Request(None, env)
@@ -91,6 +102,7 @@ def test_request_body():
 
 
 def test_request_form():
+    conf = wsgirouter3.WsgiAppConfig()
     boundary = secrets.token_hex(16)
     field_name = 'field'
     field_def = f'Content-Disposition: form-data; name="{field_name}"'
@@ -103,7 +115,7 @@ def test_request_form():
         'CONTENT_LENGTH': f'{len(form_bytes)}',
     }
 
-    r = Request(None, env)
+    r = Request(conf, env)
     assert r.content_length == len(form_bytes)
     form_data = r.form
     assert isinstance(form_data, cgi.FieldStorage)
@@ -111,6 +123,7 @@ def test_request_form():
 
 
 def test_request_empty_form():
+    conf = wsgirouter3.WsgiAppConfig()
     boundary = secrets.token_hex(16)
     form_bytes = f'--{boundary}--\r\n'.encode()
     env = {
@@ -120,7 +133,7 @@ def test_request_empty_form():
         'CONTENT_LENGTH': f'{len(form_bytes)}',
     }
 
-    r = Request(None, env)
+    r = Request(conf, env)
     assert r.content_length == len(form_bytes)
     form_data = r.form
     assert isinstance(form_data, cgi.FieldStorage)
@@ -128,20 +141,21 @@ def test_request_empty_form():
 
 
 def test_request_bad_form():
+    conf = wsgirouter3.WsgiAppConfig()
     env = {
         'REQUEST_METHOD': 'POST',
         'CONTENT_TYPE': 'application/json',
     }
 
     with pytest.raises(HTTPError) as exc_info:
-        Request(None, env).form
+        Request(conf, env).form
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
 
     boundary = secrets.token_hex(16)
     env['CONTENT_TYPE'] = f'multipart/form-data; boundary={boundary}'
     # missing content length
     with pytest.raises(HTTPError) as exc_info:
-        Request(None, env).form
+        Request(conf, env).form
     assert exc_info.value.args[0] == HTTPStatus.BAD_REQUEST
 
     boundary = secrets.token_hex(16) + 'Ä'
@@ -151,7 +165,7 @@ def test_request_bad_form():
     env['wsgi.input'] = io.BytesIO(form_bytes)
     # bad boundary symbol
     with pytest.raises(HTTPError) as exc_info:
-        Request(None, env).form
+        Request(conf, env).form
     assert exc_info.value.args[0] == HTTPStatus.BAD_REQUEST
 
 
@@ -440,7 +454,7 @@ def test_wsgi_application():
 
     app = WsgiApp(failingrouter)
 
-    def error_handler(app, environ, exc):
+    def error_handler(config, environ, exc):
         raise exc
 
     app.config.error_handler = error_handler

@@ -153,7 +153,10 @@ class Request:
         if content_length == 0:
             return _NO_DATA_BODY
 
-        # XXX optionally check maximum length
+        max_content_length = self.config.max_content_length
+        if max_content_length is not None and max_content_length < content_length:
+            raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+
         return self.environ['wsgi.input'].read(content_length)
 
     @cached_property
@@ -281,6 +284,7 @@ class WsgiAppConfig:
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     error_handler: Callable[['WsgiAppConfig', dict, Exception], Any] = staticmethod(_default_error_handler)
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
+    max_content_length: Optional[int] = None
 
 
 class WsgiApp:

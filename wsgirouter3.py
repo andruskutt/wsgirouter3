@@ -256,7 +256,7 @@ def _default_result_handler(config: 'WsgiAppConfig', environ: dict, result) -> T
         headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
     elif isinstance(result, str):
         result = result.encode(),
-        headers.setdefault(_CONTENT_TYPE_HEADER, 'text/plain;charset=utf-8')
+        headers.setdefault(_CONTENT_TYPE_HEADER, config.default_str_content_type)
         headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
     elif not isinstance(result, GeneratorType):
         result = _custom_result_handler(config, result, headers)
@@ -283,6 +283,7 @@ class WsgiAppConfig:
     result_handler: Callable[['WsgiAppConfig', dict, Any],
                              Tuple[int, Iterable, dict]] = staticmethod(_default_result_handler)
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
+    default_str_content_type: str = 'text/plain;charset=utf-8'
     error_handler: Callable[['WsgiAppConfig', dict, Exception], Any] = staticmethod(_default_error_handler)
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_content_length: Optional[int] = None

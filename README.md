@@ -9,7 +9,7 @@ Path variable types are defined using python typing information. Customizable, t
 
 Request context is passed as handler's first positional parameter. No global variables/threadlocals. Context factory is customizable, by default minimal WSGI environ wrapper.
 
-Supports overlapping path segments: zero or more literal segments with optional parameter. Parameters of different type and/or name in same position are not supported. Literal segment takes precedence.
+Supports overlapping path segments: zero or more literal segments can overlap with one parameter definition. Parameters of different type and/or name in same position are not supported. Literal segment takes precedence.
 
 
 ```python
@@ -51,7 +51,7 @@ Return type handling:
 | tuple | shortcut for returning status code and optional result + headers |
 | None | allowed for status codes which have no content |
 | dict | application/json |
-| str | defined by Content-Type header, text/plain;charset=utf-8 if header is not given |
+| str | defined by optional Content-Type header. When header is missing, taken from config.default_str_content_type, by default text/plain;charset=utf-8 |
 | bytes | defined by required Content-Type header |
 | dataclass | application/json, but overridable by custom result handler |
 | typing.GeneratorType | passed as is |

@@ -228,8 +228,18 @@ def test_response_conversion_text():
     conf = wsgirouter3.WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
 
-    text_headers = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain;charset=utf-8', 'Content-Length': '5'})
-    assert wsgirouter3._default_result_handler(conf, env, 'blaah') == text_headers
+    text_response = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain;charset=utf-8', 'Content-Length': '5'})
+    assert wsgirouter3._default_result_handler(conf, env, 'blaah') == text_response
+
+
+def test_response_conversion_text_custom_content_type():
+    content_type = 'text/html;charset=utf-8'
+    conf = wsgirouter3.WsgiAppConfig()
+    conf.default_str_content_type = content_type
+    env = {'REQUEST_METHOD': 'GET'}
+
+    text_response = (HTTPStatus.OK, (b'<html></html>',), {'Content-Type': content_type, 'Content-Length': '13'})
+    assert wsgirouter3._default_result_handler(conf, env, '<html></html>') == text_response
 
 
 def test_response_conversion_binary():

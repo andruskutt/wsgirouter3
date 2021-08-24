@@ -3,10 +3,13 @@
 import cgi
 import dataclasses
 import decimal
+import functools
 import io
 import json
 import secrets
 from http import HTTPStatus
+
+import orjson
 
 import pytest
 
@@ -177,16 +180,29 @@ def test_request_json():
         r.json
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
 
-    json_bytes = b'{"A": 1, "D": 0.1}'
+    json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
     env = {
         'CONTENT_TYPE': 'application/json',
         'wsgi.input': io.BytesIO(json_bytes),
         'CONTENT_LENGTH': f'{len(json_bytes)}',
     }
     app = WsgiApp(None)
-    app.config.json_decoder = JSONDecoder
+    app.config.json_deserializer = functools.partial(json.loads, cls=JSONDecoder)
     r = Request(app.config, env)
-    assert r.json == {'A': 1, 'D': decimal.Decimal('0.1')}
+    assert r.json == {'A': 1, 'B': True, 'C': None, 'D': decimal.Decimal('0.1')}
+
+
+def test_request_json_orjson():
+    json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
+    env = {
+        'CONTENT_TYPE': 'application/json',
+        'wsgi.input': io.BytesIO(json_bytes),
+        'CONTENT_LENGTH': f'{len(json_bytes)}',
+    }
+    app = WsgiApp(None)
+    app.config.json_deserializer = orjson.loads
+    r = Request(app.config, env)
+    assert r.json == {'A': 1, 'B': True, 'C': None, 'D': 0.1}
 
 
 def test_request_bad_json():
@@ -197,7 +213,7 @@ def test_request_bad_json():
         'CONTENT_LENGTH': f'{len(json_bytes)}',
     }
     app = WsgiApp(None)
-    app.config.json_decoder = JSONDecoder
+    app.config.json_deserializer = functools.partial(json.loads, cls=JSONDecoder)
     r = Request(app.config, env)
     with pytest.raises(HTTPError) as exc_info:
         r.json
@@ -222,6 +238,23 @@ def test_response_conversion_tuple():
         env,
         (HTTPStatus.NO_CONTENT, None, with_headers[2])
     ) == with_headers
+
+
+def test_response_conversion_dict():
+    conf = wsgirouter3.WsgiAppConfig()
+    env = {'REQUEST_METHOD': 'GET'}
+
+    json_response = (HTTPStatus.OK, (b'{"B": "blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '14'})
+    assert wsgirouter3._default_result_handler(conf, env, {'B': 'blaah'}) == json_response
+
+
+def test_response_conversion_dict_orjson():
+    conf = wsgirouter3.WsgiAppConfig()
+    conf.json_serializer = orjson.dumps
+    env = {'REQUEST_METHOD': 'GET'}
+
+    json_response = (HTTPStatus.OK, (b'{"B":"blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '13'})
+    assert wsgirouter3._default_result_handler(conf, env, {'B': 'blaah'}) == json_response
 
 
 def test_response_conversion_text():

@@ -16,7 +16,7 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 from urllib.parse import parse_qsl
 
 __all__ = [
@@ -181,8 +181,8 @@ class Request:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
         try:
-            return json.loads(self.body, cls=self.config.json_decoder)
-        except json.JSONDecodeError as e:
+            return self.config.json_deserializer(self.body)
+        except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
     @cached_property
@@ -207,8 +207,7 @@ class Request:
 
 
 def _json_result_handler(config: 'WsgiAppConfig', result, headers: dict) -> Tuple[bytes]:
-    # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
-    response = json.dumps(result, cls=config.json_encoder).encode()
+    response = config.json_serializer(result)
     headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
     headers[_CONTENT_LENGTH_HEADER] = str(len(response))
     return response,
@@ -273,10 +272,15 @@ def _default_error_handler(config: 'WsgiAppConfig', environ: dict, exc: Exceptio
     return exc.status, exc.result, exc.headers or {}
 
 
+def _json_dumps_adapter(obj: Any) -> bytes:
+    # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
+    return json.dumps(obj).encode()
+
+
 @dataclass
 class WsgiAppConfig:
-    json_decoder: Optional[Type[json.JSONDecoder]] = None
-    json_encoder: Optional[Type[json.JSONEncoder]] = None
+    json_deserializer: Callable[[bytes], Any] = staticmethod(json.loads)
+    json_serializer: Callable[[Any], bytes] = staticmethod(_json_dumps_adapter)
     before_request: Optional[Callable[[Any], None]] = None
     after_request: Optional[Callable[[int, dict, dict], None]] = None
     request_factory: Callable[['WsgiAppConfig', dict], Any] = Request

@@ -511,10 +511,10 @@ class PathRouter:
             if actual_content_type != required_content_type:
                 raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
-        accepted_media_ranges = environ.get(_WSGI_ACCEPT_HEADER)
-        if accepted_media_ranges:
-            response_content_type = endpoint.produces
-            if response_content_type:
+        response_content_type = endpoint.produces
+        if response_content_type:
+            accepted_media_ranges = environ.get(_WSGI_ACCEPT_HEADER)
+            if accepted_media_ranges:
                 for ct in accepted_media_ranges.split(','):
                     media_range = _parse_header(ct.lstrip())
                     # XXX partial media range support: type/*

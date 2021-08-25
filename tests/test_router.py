@@ -4,7 +4,7 @@ from typing import Optional
 
 import pytest
 
-from wsgirouter3 import MethodNotAllowedError, NotFoundError, PathPrefixMatchingRouter, PathRouter
+from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathPrefixMatchingRouter, PathRouter, Query
 
 
 def test_str_routes():
@@ -306,6 +306,19 @@ def test_path_parameter_typings():
         r.add_route('/prefix/{float_param}/path', methods, floathandler)
 
 
+def test_partial_path():
+    url = '/extra/long'
+    r = PathRouter()
+
+    @r.route(url + '/some/suffix', ('GET',))
+    def handler(req):
+        pass
+
+    environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
+    with pytest.raises(NotFoundError):
+        r(environ)
+
+
 def test_path_parameter_defaults():
     r = PathRouter()
     methods = ('GET',)
@@ -328,6 +341,50 @@ def test_path_parameter_defaults():
 
     r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string',
                                                                         'bool_param': False})
+
+
+def test_bad_query_binding_parameter():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def too_many_queries(req, query1: Query[dict], query2: Query[dict]):
+        pass
+
+    with pytest.raises(ValueError, match='too many Query'):
+        r.add_route('/', methods, too_many_queries)
+
+    def only_positional_query(req, query: Query[dict], /):
+        pass
+
+    with pytest.raises(ValueError, match='incompatible binding parameter query'):
+        r.add_route('/', methods, only_positional_query)
+
+
+def test_bad_body_binding_parameter():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def too_many_bodies(req, body1: Body[dict], body2: Body[list]):
+        pass
+
+    with pytest.raises(ValueError, match='too many Body'):
+        r.add_route('/', methods, too_many_bodies)
+
+    def only_positional_body(req, body: Body[dict], /):
+        pass
+
+    with pytest.raises(ValueError, match='incompatible binding parameter body'):
+        r.add_route('/', methods, only_positional_body)
+
+
+def test_body_binding_parameter():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def with_body(req, body: Body[dict]):
+        pass
+
+    r.add_route('/', methods, with_body)
 
 
 def test_overlapping_path_segments():

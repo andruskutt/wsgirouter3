@@ -44,6 +44,19 @@ def post_with_json(req) -> Tuple[int]:
     return 204,
 ```
 
+Query string and request body binding:
+
+```python
+@router.route('/get', methods=('GET',), produces='application/json')
+def get(req, query: Query[dict]) -> dict:
+    return query
+
+@router.route('/post', methods=('POST',), consumes='application/json')
+def post_with_json(req, data: Body[dict]) -> Tuple[int]:
+    # do something with data
+    return 204,
+```
+
 Return type handling:
 
 | Type | Description |

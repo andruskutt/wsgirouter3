@@ -14,7 +14,7 @@ import orjson
 import pytest
 
 import wsgirouter3
-from wsgirouter3 import HTTPError, PathRouter, Request, WsgiApp
+from wsgirouter3 import Body, HTTPError, PathRouter, Query, Request, WsgiApp, WsgiAppConfig
 
 
 class JSONDecoder(json.JSONDecoder):
@@ -26,6 +26,10 @@ class JSONDecoder(json.JSONDecoder):
 class Sample:
     i: int
     s: str
+
+
+def _http_status_response(status: HTTPStatus) -> str:
+    return status.description
 
 
 def test_request():
@@ -86,7 +90,7 @@ def test_request_missing_content_length():
 
 
 def test_request_max_content_length():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     conf.max_content_length = 1
     env = {'CONTENT_LENGTH': '2'}
     r = Request(conf, env)
@@ -105,7 +109,7 @@ def test_request_body():
 
 
 def test_request_form():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     boundary = secrets.token_hex(16)
     field_name = 'field'
     field_def = f'Content-Disposition: form-data; name="{field_name}"'
@@ -126,7 +130,7 @@ def test_request_form():
 
 
 def test_request_empty_form():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     boundary = secrets.token_hex(16)
     form_bytes = f'--{boundary}--\r\n'.encode()
     env = {
@@ -144,7 +148,7 @@ def test_request_empty_form():
 
 
 def test_request_bad_form():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     env = {
         'REQUEST_METHOD': 'POST',
         'CONTENT_TYPE': 'application/json',
@@ -221,19 +225,19 @@ def test_request_bad_json():
 
 
 def test_response_conversion_tuple():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
     no_content = (HTTPStatus.NO_CONTENT, (b'',), {})
 
-    assert wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT,)) == no_content
-    assert wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT, None, ())) == no_content
+    assert conf.result_handler(conf, env, (HTTPStatus.NO_CONTENT,)) == no_content
+    assert conf.result_handler(conf, env, (HTTPStatus.NO_CONTENT, None, ())) == no_content
 
     # int as status is same as HTTPStatus
     with_headers = (HTTPStatus.NO_CONTENT, (b'',), {'header': 'val'})
-    assert wsgirouter3._default_result_handler(conf, env, (204, None, with_headers[2])) == with_headers
+    assert conf.result_handler(conf, env, (204, None, with_headers[2])) == with_headers
 
     with_headers = (HTTPStatus.NO_CONTENT, (b'',), {'header': 'val'})
-    assert wsgirouter3._default_result_handler(
+    assert conf.result_handler(
         conf,
         env,
         (HTTPStatus.NO_CONTENT, None, with_headers[2])
@@ -241,46 +245,46 @@ def test_response_conversion_tuple():
 
 
 def test_response_conversion_dict():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
 
     json_response = (HTTPStatus.OK, (b'{"B": "blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '14'})
-    assert wsgirouter3._default_result_handler(conf, env, {'B': 'blaah'}) == json_response
+    assert conf.result_handler(conf, env, {'B': 'blaah'}) == json_response
 
 
 def test_response_conversion_dict_orjson():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     conf.json_serializer = orjson.dumps
     env = {'REQUEST_METHOD': 'GET'}
 
     json_response = (HTTPStatus.OK, (b'{"B":"blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '13'})
-    assert wsgirouter3._default_result_handler(conf, env, {'B': 'blaah'}) == json_response
+    assert conf.result_handler(conf, env, {'B': 'blaah'}) == json_response
 
 
 def test_response_conversion_text():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
 
     text_response = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain;charset=utf-8', 'Content-Length': '5'})
-    assert wsgirouter3._default_result_handler(conf, env, 'blaah') == text_response
+    assert conf.result_handler(conf, env, 'blaah') == text_response
 
 
 def test_response_conversion_text_custom_content_type():
     content_type = 'text/html;charset=utf-8'
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     conf.default_str_content_type = content_type
     env = {'REQUEST_METHOD': 'GET'}
 
     text_response = (HTTPStatus.OK, (b'<html></html>',), {'Content-Type': content_type, 'Content-Length': '13'})
-    assert wsgirouter3._default_result_handler(conf, env, '<html></html>') == text_response
+    assert conf.result_handler(conf, env, '<html></html>') == text_response
 
 
 def test_response_conversion_binary():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
 
     with_headers = (HTTPStatus.OK, b'1234', {'Content-Type': 'octet/stream'})
-    assert wsgirouter3._default_result_handler(
+    assert conf.result_handler(
         conf,
         env,
         with_headers
@@ -292,23 +296,23 @@ def test_response_conversion_binary():
 
 
 def test_response_conversion_invalid():
-    conf = wsgirouter3.WsgiAppConfig()
+    conf = WsgiAppConfig()
     env = {'REQUEST_METHOD': 'GET'}
 
     with pytest.raises(ValueError, match='Invalid result tuple'):
-        wsgirouter3._default_result_handler(conf, env, ())
+        conf.result_handler(conf, env, ())
 
     with pytest.raises(ValueError, match='Unexpected result'):
-        wsgirouter3._default_result_handler(conf, env, (HTTPStatus.NO_CONTENT, b'1234'))
+        conf.result_handler(conf, env, (HTTPStatus.NO_CONTENT, b'1234'))
 
     with pytest.raises(ValueError, match='Invalid type of status'):
-        wsgirouter3._default_result_handler(conf, env, ('123 Wrong status',))
+        conf.result_handler(conf, env, ('123 Wrong status',))
 
     with pytest.raises(ValueError, match='Unknown content type for binary result'):
-        wsgirouter3._default_result_handler(conf, env, b'1234')
+        conf.result_handler(conf, env, b'1234')
 
     with pytest.raises(ValueError, match='Unknown result'):
-        wsgirouter3._default_result_handler(conf, env, True)
+        conf.result_handler(conf, env, True)
 
 
 def test_dataclass_response():
@@ -510,7 +514,7 @@ def test_wsgi_application():
     r.add_route(url, ('GET',), lambda req: {})
     app = WsgiApp(r)
     env = {'REQUEST_METHOD': 'POST', 'PATH_INFO': url}
-    assert app(env, start_response) == (HTTPStatus.METHOD_NOT_ALLOWED.description.encode(),)
+    assert app(env, start_response) == (_http_status_response(HTTPStatus.METHOD_NOT_ALLOWED).encode(),)
 
     def failinghandler(req):
         status = HTTPStatus.UNPROCESSABLE_ENTITY
@@ -522,7 +526,7 @@ def test_wsgi_application():
         return failinghandler
 
     app = WsgiApp(r)
-    assert app(env, start_response) == (HTTPStatus.UNPROCESSABLE_ENTITY.description.encode(),)
+    assert app(env, start_response) == (_http_status_response(HTTPStatus.UNPROCESSABLE_ENTITY).encode(),)
 
     def handlerwithruntimeerror(req):
         raise ValueError('Unexpected')
@@ -531,7 +535,7 @@ def test_wsgi_application():
         return handlerwithruntimeerror, {}
 
     app = WsgiApp(r2)
-    assert app(env, start_response) == (HTTPStatus.INTERNAL_SERVER_ERROR.description.encode(),)
+    assert app(env, start_response) == (_http_status_response(HTTPStatus.INTERNAL_SERVER_ERROR).encode(),)
 
 
 def test_wsgi_application_head_method():
@@ -581,6 +585,125 @@ def test_wsgi_application_generator_head_method():
     assert b''.join(app(env, start_response)) == b''
 
 
+def test_query_binding():
+    url = '/url'
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url, 'QUERY_STRING': 'abc=def'}
+
+    router = PathRouter()
+
+    @router.route(url, ('GET',))
+    def endpoint(req, query: Query[dict]) -> dict:
+        return query
+
+    app = WsgiApp(router)
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == b'{"abc": "def"}'
+
+
+def test_body_binding_json():
+    url = '/url'
+    json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
+    env = {
+        'REQUEST_METHOD': 'POST',
+        'PATH_INFO': url,
+        'CONTENT_TYPE': 'application/json',
+        'wsgi.input': io.BytesIO(json_bytes),
+        'CONTENT_LENGTH': f'{len(json_bytes)}',
+    }
+
+    router = PathRouter()
+
+    @router.route(url, ('POST',))
+    def endpoint(req, body: Body[dict]) -> dict:
+        return body
+
+    app = WsgiApp(router)
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == json_bytes
+
+
+def test_body_binding_form():
+    url = '/url'
+    boundary = secrets.token_hex(16)
+    form_bytes = f'--{boundary}--\r\n'.encode()
+    env = {
+        'REQUEST_METHOD': 'POST',
+        'PATH_INFO': url,
+        'CONTENT_TYPE': f'multipart/form-data; boundary={boundary}',
+        'wsgi.input': io.BytesIO(form_bytes),
+        'CONTENT_LENGTH': f'{len(form_bytes)}',
+    }
+
+    router = PathRouter()
+
+    @router.route(url, ('POST',))
+    def endpoint(req, body: Body[cgi.FieldStorage]) -> dict:
+        return {key: body.getfirst(key) for key in body.keys()}
+
+    app = WsgiApp(router)
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == b'{}'
+
+
+def test_body_binding_bad_datatype():
+    url = '/url'
+    json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
+    env = {
+        'REQUEST_METHOD': 'POST',
+        'PATH_INFO': url,
+        'CONTENT_TYPE': 'application/json',
+        'wsgi.input': io.BytesIO(json_bytes),
+        'CONTENT_LENGTH': f'{len(json_bytes)}',
+    }
+
+    router = PathRouter()
+
+    @router.route(url, ('POST',))
+    def endpoint(req, body: Body[list]) -> dict:
+        return body
+
+    app = WsgiApp(router)
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == _http_status_response(HTTPStatus.BAD_REQUEST).encode()
+
+
+def test_body_binding_bad_content_type():
+    url = '/url'
+    json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
+    env = {
+        'REQUEST_METHOD': 'POST',
+        'PATH_INFO': url,
+        'CONTENT_TYPE': 'application/octet-stream',
+        'wsgi.input': io.BytesIO(json_bytes),
+        'CONTENT_LENGTH': f'{len(json_bytes)}',
+    }
+
+    router = PathRouter()
+
+    @router.route(url, ('POST',))
+    def endpoint(req, body: Body[dict]) -> dict:
+        return body
+
+    app = WsgiApp(router)
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == _http_status_response(HTTPStatus.UNSUPPORTED_MEDIA_TYPE).encode()
+
+
 def test_cached_property():
     calc1_called = 0
 
@@ -618,7 +741,7 @@ def test_http_error():
     e = HTTPError(HTTPStatus.NOT_FOUND)
     assert e.status == 404
     # result is automatically initialized
-    assert e.result == HTTPStatus.NOT_FOUND.description
+    assert e.result == _http_status_response(HTTPStatus.NOT_FOUND)
     assert e.headers is None
 
     e = HTTPError(HTTPStatus.NO_CONTENT)

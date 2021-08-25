@@ -353,7 +353,7 @@ def test_bad_query_binding_parameter():
     with pytest.raises(ValueError, match='too many Query'):
         r.add_route('/', methods, too_many_queries)
 
-    def only_positional_query(req, query: Query[dict], /):
+    def only_positional_query(req, *query: Query[dict]):
         pass
 
     with pytest.raises(ValueError, match='incompatible binding parameter query'):
@@ -370,7 +370,7 @@ def test_bad_body_binding_parameter():
     with pytest.raises(ValueError, match='too many Body'):
         r.add_route('/', methods, too_many_bodies)
 
-    def only_positional_body(req, body: Body[dict], /):
+    def only_positional_body(req, *body: Body[dict]):
         pass
 
     with pytest.raises(ValueError, match='incompatible binding parameter body'):

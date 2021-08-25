@@ -229,16 +229,15 @@ def test_response_conversion_tuple():
     env = {'REQUEST_METHOD': 'GET'}
     no_content = (HTTPStatus.NO_CONTENT, (b'',), {})
 
-    assert conf.result_handler(conf, env, (HTTPStatus.NO_CONTENT,)) == no_content
-    assert conf.result_handler(conf, env, (HTTPStatus.NO_CONTENT, None, ())) == no_content
+    assert conf.result_handler(env, (HTTPStatus.NO_CONTENT,)) == no_content
+    assert conf.result_handler(env, (HTTPStatus.NO_CONTENT, None, ())) == no_content
 
     # int as status is same as HTTPStatus
     with_headers = (HTTPStatus.NO_CONTENT, (b'',), {'header': 'val'})
-    assert conf.result_handler(conf, env, (204, None, with_headers[2])) == with_headers
+    assert conf.result_handler(env, (204, None, with_headers[2])) == with_headers
 
     with_headers = (HTTPStatus.NO_CONTENT, (b'',), {'header': 'val'})
     assert conf.result_handler(
-        conf,
         env,
         (HTTPStatus.NO_CONTENT, None, with_headers[2])
     ) == with_headers
@@ -249,7 +248,7 @@ def test_response_conversion_dict():
     env = {'REQUEST_METHOD': 'GET'}
 
     json_response = (HTTPStatus.OK, (b'{"B": "blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '14'})
-    assert conf.result_handler(conf, env, {'B': 'blaah'}) == json_response
+    assert conf.result_handler(env, {'B': 'blaah'}) == json_response
 
 
 def test_response_conversion_dict_orjson():
@@ -258,7 +257,7 @@ def test_response_conversion_dict_orjson():
     env = {'REQUEST_METHOD': 'GET'}
 
     json_response = (HTTPStatus.OK, (b'{"B":"blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '13'})
-    assert conf.result_handler(conf, env, {'B': 'blaah'}) == json_response
+    assert conf.result_handler(env, {'B': 'blaah'}) == json_response
 
 
 def test_response_conversion_text():
@@ -266,7 +265,7 @@ def test_response_conversion_text():
     env = {'REQUEST_METHOD': 'GET'}
 
     text_response = (HTTPStatus.OK, (b'blaah',), {'Content-Type': 'text/plain;charset=utf-8', 'Content-Length': '5'})
-    assert conf.result_handler(conf, env, 'blaah') == text_response
+    assert conf.result_handler(env, 'blaah') == text_response
 
 
 def test_response_conversion_text_custom_content_type():
@@ -276,7 +275,7 @@ def test_response_conversion_text_custom_content_type():
     env = {'REQUEST_METHOD': 'GET'}
 
     text_response = (HTTPStatus.OK, (b'<html></html>',), {'Content-Type': content_type, 'Content-Length': '13'})
-    assert conf.result_handler(conf, env, '<html></html>') == text_response
+    assert conf.result_handler(env, '<html></html>') == text_response
 
 
 def test_response_conversion_binary():
@@ -285,7 +284,6 @@ def test_response_conversion_binary():
 
     with_headers = (HTTPStatus.OK, b'1234', {'Content-Type': 'octet/stream'})
     assert conf.result_handler(
-        conf,
         env,
         with_headers
     ) == (
@@ -300,19 +298,19 @@ def test_response_conversion_invalid():
     env = {'REQUEST_METHOD': 'GET'}
 
     with pytest.raises(ValueError, match='Invalid result tuple'):
-        conf.result_handler(conf, env, ())
+        conf.result_handler(env, ())
 
     with pytest.raises(ValueError, match='Unexpected result'):
-        conf.result_handler(conf, env, (HTTPStatus.NO_CONTENT, b'1234'))
+        conf.result_handler(env, (HTTPStatus.NO_CONTENT, b'1234'))
 
     with pytest.raises(ValueError, match='Invalid type of status'):
-        conf.result_handler(conf, env, ('123 Wrong status',))
+        conf.result_handler(env, ('123 Wrong status',))
 
     with pytest.raises(ValueError, match='Unknown content type for binary result'):
-        conf.result_handler(conf, env, b'1234')
+        conf.result_handler(env, b'1234')
 
     with pytest.raises(ValueError, match='Unknown result'):
-        conf.result_handler(conf, env, True)
+        conf.result_handler(env, True)
 
 
 def test_dataclass_response():
@@ -342,7 +340,7 @@ def test_generator_response():
 
     g = generator()
     # generator is passed as is
-    assert wsgirouter3._default_result_handler(None, env, g) == (HTTPStatus.OK, g, {})
+    assert WsgiAppConfig().result_handler(env, g) == (HTTPStatus.OK, g, {})
 
     def endpoint(req):
         return generator()
@@ -501,7 +499,7 @@ def test_wsgi_application():
 
     app = WsgiApp(failingrouter)
 
-    def error_handler(config, environ, exc):
+    def error_handler(environ, exc):
         raise exc
 
     app.config.error_handler = error_handler

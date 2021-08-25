@@ -17,7 +17,7 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, Generic, Iterable, List, Mapping, Optional, Set, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
 from urllib.parse import parse_qsl
 
 __all__ = [
@@ -162,7 +162,7 @@ class Request:
         return self.environ['wsgi.input'].read(content_length)
 
     @cached_property
-    def form(self) -> Mapping:
+    def form(self) -> cgi.FieldStorage:
         if self.content_type != _CONTENT_TYPE_MULTIPART_FORM_DATA:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
@@ -208,99 +208,90 @@ class Request:
         return self.environ[_WSGI_REQUEST_METHOD_HEADER]
 
 
-def _default_binder(data, result_type):
-    if not isinstance(data, result_type):
-        raise HTTPError(HTTPStatus.BAD_REQUEST)
-
-    return data
-
-
-def _json_result_handler(config: 'WsgiAppConfig', result, headers: dict) -> Tuple[bytes]:
-    response = config.json_serializer(result)
-    headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
-    headers[_CONTENT_LENGTH_HEADER] = str(len(response))
-    return response,
-
-
-def _custom_result_handler(config: 'WsgiAppConfig', result, headers: dict) -> Iterable:
-    for matcher, handler in config.result_converters:
-        if matcher(result):
-            return handler(result, headers)
-
-    # dataclass is json if not overridden by custom converter
-    if not is_dataclass(result):
-        raise ValueError(f'Unknown result {result}')
-
-    return _json_result_handler(config, dataclass_asdict(result), headers)
-
-
-def _default_result_handler(config: 'WsgiAppConfig', environ: dict, result) -> Tuple[int, Iterable, dict]:
-    status = HTTPStatus.OK
-    headers = {}
-    if isinstance(result, tuple):
-        # shortcut for returning status code and optional result/headers
-        tuple_length = len(result)
-        if tuple_length < 1 or tuple_length > 3:
-            raise ValueError(f'Invalid result tuple: {result}: supported status[, result[, headers]]')
-        status = result[0]
-        if not isinstance(status, int):
-            raise ValueError(f'Invalid type of status: {status}')
-        if tuple_length > 2 and result[2]:
-            headers.update(result[2])
-        result = result[1] if tuple_length > 1 else None
-
-    if status in _STATUSES_WITHOUT_CONTENT:
-        if result is not None:
-            raise ValueError(f'Unexpected result {result} for {status.phrase} response')
-
-        result = _NO_DATA_RESULT
-    elif isinstance(result, dict):
-        result = _json_result_handler(config, result, headers)
-    elif isinstance(result, bytes):
-        if _CONTENT_TYPE_HEADER not in headers:
-            raise ValueError('Unknown content type for binary result')
-
-        result = result,
-        headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
-    elif isinstance(result, str):
-        result = result.encode(),
-        headers.setdefault(_CONTENT_TYPE_HEADER, config.default_str_content_type)
-        headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
-    elif not isinstance(result, GeneratorType):
-        result = _custom_result_handler(config, result, headers)
-
-    return status, result, headers
-
-
-def _default_error_handler(config: 'WsgiAppConfig', environ: dict, exc: Exception) -> tuple:
-    if not isinstance(exc, HTTPError):
-        config.logger.exception('Unhandled exception', exc_info=exc)
-
-        exc = HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR)
-
-    return exc.status, exc.result, exc.headers or {}
-
-
-def _json_dumps_adapter(obj: Any) -> bytes:
-    # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
-    return json.dumps(obj).encode()
-
-
 @dataclass
 class WsgiAppConfig:
-    json_deserializer: Callable[[bytes], Any] = staticmethod(json.loads)
-    json_serializer: Callable[[Any], bytes] = staticmethod(_json_dumps_adapter)
     before_request: Optional[Callable[[Any], None]] = None
     after_request: Optional[Callable[[int, dict, dict], None]] = None
     request_factory: Callable[['WsgiAppConfig', dict], Any] = Request
-    binder: Callable[[Any, Any], Any] = staticmethod(_default_binder)
-    result_handler: Callable[['WsgiAppConfig', dict, Any],
-                             Tuple[int, Iterable, dict]] = staticmethod(_default_result_handler)
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
-    error_handler: Callable[['WsgiAppConfig', dict, Exception], Any] = staticmethod(_default_error_handler)
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_content_length: Optional[int] = None
+
+    def result_handler(self, environ: dict, result) -> Tuple[int, Iterable, dict]:
+        status = HTTPStatus.OK
+        headers = {}
+        if isinstance(result, tuple):
+            # shortcut for returning status code and optional result/headers
+            tuple_length = len(result)
+            if tuple_length < 1 or tuple_length > 3:
+                raise ValueError(f'Invalid result tuple: {result}: supported status[, result[, headers]]')
+            status = result[0]
+            if not isinstance(status, int):
+                raise ValueError(f'Invalid type of status: {status}')
+            if tuple_length > 2 and result[2]:
+                headers.update(result[2])
+            result = result[1] if tuple_length > 1 else None
+
+        if status in _STATUSES_WITHOUT_CONTENT:
+            if result is not None:
+                raise ValueError(f'Unexpected result {result} for {status.phrase} response')
+
+            result = _NO_DATA_RESULT
+        elif isinstance(result, dict):
+            result = self.json_result_handler(result, headers)
+        elif isinstance(result, bytes):
+            if _CONTENT_TYPE_HEADER not in headers:
+                raise ValueError('Unknown content type for binary result')
+
+            result = result,
+            headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
+        elif isinstance(result, str):
+            result = result.encode(),
+            headers.setdefault(_CONTENT_TYPE_HEADER, self.default_str_content_type)
+            headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
+        elif not isinstance(result, GeneratorType):
+            result = self.custom_result_handler(result, headers)
+
+        return status, result, headers
+
+    def custom_result_handler(self, result, headers: dict) -> Iterable:
+        for matcher, handler in self.result_converters:
+            if matcher(result):
+                return handler(result, headers)
+
+        # dataclass is json if not overridden by custom converter
+        if not is_dataclass(result):
+            raise ValueError(f'Unknown result {result}')
+
+        return self.json_result_handler(dataclass_asdict(result), headers)
+
+    def json_result_handler(self, result, headers: dict) -> Tuple[bytes]:
+        response = self.json_serializer(result)
+        headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
+        headers[_CONTENT_LENGTH_HEADER] = str(len(response))
+        return response,
+
+    def error_handler(self, environ: dict, exc: Exception) -> tuple:
+        if not isinstance(exc, HTTPError):
+            self.logger.exception('Unhandled exception', exc_info=exc)
+
+            exc = HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR)
+
+        return exc.status, exc.result, exc.headers or {}
+
+    def json_deserializer(self, obj: bytes):
+        return json.loads(obj)
+
+    def json_serializer(self, obj) -> bytes:
+        # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
+        return json.dumps(obj).encode()
+
+    def binder(self, data, result_type):
+        if not isinstance(data, result_type):
+            raise HTTPError(HTTPStatus.BAD_REQUEST)
+
+        return data
 
 
 class WsgiApp:
@@ -321,10 +312,10 @@ class WsgiApp:
 
             result = handler(request, **environ[ROUTE_ROUTING_ARGS_KEY][1])
         except Exception as exc:  # noqa: B902
-            result = self.config.error_handler(self.config, environ, exc)
+            result = self.config.error_handler(environ, exc)
 
         # XXX error handling for result conversion and after request hook
-        status, result, response_headers = self.config.result_handler(self.config, environ, result)
+        status, result, response_headers = self.config.result_handler(environ, result)
 
         after_request = self.config.after_request
         if after_request is not None:
@@ -623,7 +614,10 @@ class PathRouter:
 
         return entry, parameter_names
 
-    def parse_parameter(self, parameter: str, route_path: str, signature: inspect.Signature) -> Tuple[Callable, str]:
+    def parse_parameter(self,
+                        parameter: str,
+                        route_path: str,
+                        signature: inspect.Signature) -> Tuple[Type[PathParameter], str]:
         suffix_length = -len(self.path_parameter_end) if self.path_parameter_end else None
         parameter_name = parameter[len(self.path_parameter_start):suffix_length]
         if not ((not suffix_length or parameter.endswith(self.path_parameter_end)) and parameter_name):

@@ -23,7 +23,7 @@ from urllib.parse import parse_qsl
 __all__ = [
     'ROUTE_OPTIONS_KEY', 'ROUTE_PATH_KEY', 'ROUTE_ROUTING_ARGS_KEY',
     'HTTPError', 'MethodNotAllowedError', 'NotFoundError',
-    'PathPrefixMatchingRouter', 'PathRouter', 'PathParameter',
+    'PathRouter', 'PathParameter',
     'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body'
 ]
 
@@ -382,12 +382,13 @@ class Endpoint:
 
 
 class PathEntry:
-    __slots__ = ('mapping', 'parameter', 'methodmap')
+    __slots__ = ('mapping', 'parameter', 'methodmap', 'subrouter')
 
     def __init__(self) -> None:
         self.mapping: Dict[str, 'PathEntry'] = {}
         self.parameter: Optional['PathParameter'] = None
         self.methodmap: Dict[str, Endpoint] = {}
+        self.subrouter: Optional['PathRouter'] = None
 
     def __getitem__(self, path_segment: str) -> 'PathEntry':
         handler = self.mapping.get(path_segment)
@@ -396,6 +397,11 @@ class PathEntry:
 
         if self.parameter is not None and self.parameter.match(path_segment):
             return self.parameter
+
+        if self.subrouter is not None:
+            # delegate to subrouter
+            # XXX adjust SCRIPT_NAME and PATH_INFO?
+            return self.subrouter.root[path_segment]
 
         # no match
         raise KeyError
@@ -592,7 +598,17 @@ class PathRouter:
         )
         entry.add_endpoint(methods, endpoint)
 
-    def parse_route_path(self, route_path: str, signature: inspect.Signature) -> Tuple[PathEntry, set]:
+    def add_subrouter(self, route_path: str, router: 'PathRouter') -> None:
+        entry, _ = self.parse_route_path(route_path, None)
+        if entry is self.root:
+            raise ValueError(f'{route_path}: missing path prefix for subrouter')
+
+        if entry.subrouter is not None:
+            raise ValueError(f'{route_path}: duplicate subrouter')
+
+        entry.subrouter = router
+
+    def parse_route_path(self, route_path: str, signature: Optional[inspect.Signature]) -> Tuple[PathEntry, set]:
         entry = self.root
         parameter_names: Set[str] = set()
 
@@ -604,6 +620,9 @@ class PathRouter:
                 raise ValueError(f'{route_path}: missing path segment')
             elif path_segment.startswith(self.path_parameter_start):
                 # path parameter definition
+                if signature is None:
+                    raise ValueError(f'{route_path}: parameters are not allowed')
+
                 factory, parameter_name = self.parse_parameter(path_segment, route_path, signature)
                 if entry.parameter:
                     if not (isinstance(entry.parameter, factory) and entry.parameter.name == parameter_name):
@@ -684,41 +703,6 @@ class PathRouter:
 
         args = typing.get_args(bp.annotation)
         return (binding_name, args[0] if len(args) == 1 else binding_type)
-
-
-class PathPrefixMatchingRouter:
-    def __init__(self, mapping: Dict[str, Callable]) -> None:
-        self.mapping: List[Tuple[str, str, Callable]] = []
-        self.add_route_mapping(mapping)
-
-    def __call__(self, environ: Dict[str, Any]) -> Callable:
-        route_path = environ.get(_WSGI_PATH_INFO_HEADER) or _PATH_SEPARATOR
-        for match, prefix, subrouter in self.mapping:
-            if route_path.startswith(match):
-                environ[_WSGI_SCRIPT_NAME_HEADER] = environ.get(_WSGI_SCRIPT_NAME_HEADER, '') + prefix
-                environ[_WSGI_PATH_INFO_HEADER] = route_path[len(prefix):]
-                return subrouter(environ)
-
-        raise NotFoundError(route_path)
-
-    def add_route(self, prefix: str, handler: Callable) -> None:
-        if not prefix or prefix == _PATH_SEPARATOR:
-            raise ValueError(f'Invalid path prefix {prefix}')
-
-        matchingprefix = prefix
-        if not prefix.endswith(_PATH_SEPARATOR):
-            matchingprefix += _PATH_SEPARATOR
-        else:
-            prefix = prefix[:-len(_PATH_SEPARATOR)]
-
-        if matchingprefix in (r[0] for r in self.mapping):
-            raise ValueError(f'Duplicate prefix {prefix}')
-
-        self.mapping.append((matchingprefix, prefix, handler))
-
-    def add_route_mapping(self, mapping: Dict[str, Callable]) -> None:
-        for prefix, handler in mapping.items():
-            self.add_route(prefix, handler)
 
 
 def _parse_header(header: Optional[str]) -> Optional[str]:

@@ -4,7 +4,7 @@ from typing import Optional
 
 import pytest
 
-from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathPrefixMatchingRouter, PathRouter, Query, Request
+from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathRouter, Query, Request
 
 
 def test_str_routes():
@@ -410,36 +410,44 @@ def test_overlapping_path_segments():
         assert environ[r.routing_args_key] == ((), {**args, **(defaults or {})})
 
 
-def test_prefix_matching_router():
-    def handler(req: str):
+def test_subrouter():
+    def handler(value: str):
         pass
 
-    with pytest.raises(ValueError):
-        PathPrefixMatchingRouter({None: handler})
+    router = PathRouter()
+    subrouter = PathRouter()
 
-    with pytest.raises(ValueError):
-        PathPrefixMatchingRouter({'/': handler})
+    with pytest.raises(ValueError, match='missing path prefix for subrouter'):
+        router.add_subrouter('/', subrouter)
 
-    sr = PathRouter()
+    with pytest.raises(ValueError, match='parameters are not allowed'):
+        router.add_subrouter('/{parameter}', subrouter)
+
     methods = ('GET',)
 
-    sr.add_route('/{req}', methods, handler)
-    sr.add_route('/{req}/subpath', methods, handler)
+    subrouter.add_route('/{value}', methods, handler)
+    subrouter.add_route('/{value}/subpath', methods, handler)
 
-    prefix1 = '/subpath'
-    prefix2 = '/subpath2/'
+    prefix1 = '/subpath1'
+    prefix2 = '/subpath2'
+
+    router.add_subrouter(prefix1, subrouter)
+    router.add_subrouter(prefix2, subrouter)
+
+    with pytest.raises(ValueError, match='duplicate subrouter'):
+        router.add_subrouter(prefix1, handler)
+
     url = '/abc'
-    r = PathPrefixMatchingRouter({prefix1: sr, prefix2: sr})
-
-    with pytest.raises(ValueError, match='Duplicate prefix'):
-        r.add_route(prefix1, handler)
-
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': url}
     with pytest.raises(NotFoundError):
-        r(environ)
+        router(environ)
 
     environ['PATH_INFO'] = prefix1 + url
-    r(environ)
+    assert router(environ).__wrapped__ == handler
+    environ['PATH_INFO'] = prefix1 + url + '/subpath'
+    assert router(environ).__wrapped__ == handler
 
-    environ['PATH_INFO'] = prefix2 + url[1:]
-    r(environ)
+    environ['PATH_INFO'] = prefix2 + url
+    assert router(environ).__wrapped__ == handler
+    environ['PATH_INFO'] = prefix2 + url + '/subpath'
+    assert router(environ).__wrapped__ == handler

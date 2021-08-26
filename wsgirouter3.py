@@ -35,6 +35,7 @@ _CONTENT_LENGTH_HEADER = 'Content-Length'
 _CONTENT_TYPE_HEADER = 'Content-Type'
 _CONTENT_TYPE_APPLICATION_JSON = 'application/json'
 _CONTENT_TYPE_MULTIPART_FORM_DATA = 'multipart/form-data'
+_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED = 'application/x-www-form-urlencoded'
 
 _WSGI_ACCEPT_HEADER = 'HTTP_ACCEPT'
 _WSGI_CONTENT_LENGTH_HEADER = 'CONTENT_LENGTH'
@@ -43,6 +44,7 @@ _WSGI_PATH_INFO_HEADER = 'PATH_INFO'
 _WSGI_REQUEST_METHOD_HEADER = 'REQUEST_METHOD'
 _WSGI_SCRIPT_NAME_HEADER = 'SCRIPT_NAME'
 
+_FORM_CONTENT_TYPES = {_CONTENT_TYPE_MULTIPART_FORM_DATA, _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED}
 _FORM_DECODE_ENVIRONMENT_KEYS = {_WSGI_CONTENT_LENGTH_HEADER, _WSGI_CONTENT_TYPE_HEADER}
 
 _NO_DATA_BODY = b''
@@ -163,7 +165,7 @@ class Request:
 
     @cached_property
     def form(self) -> cgi.FieldStorage:
-        if self.content_type != _CONTENT_TYPE_MULTIPART_FORM_DATA:
+        if self.content_type not in _FORM_CONTENT_TYPES:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
         if not _FORM_DECODE_ENVIRONMENT_KEYS.issubset(self.environ):
@@ -172,8 +174,8 @@ class Request:
         sandbox = {k: self.environ[k] for k in _FORM_DECODE_ENVIRONMENT_KEYS}
         sandbox[_WSGI_REQUEST_METHOD_HEADER] = 'POST'
         try:
-            # PEP-594: cgi module will be removed in python 3.10
-            return cgi.FieldStorage(fp=io.BytesIO(self.body), environ=sandbox, strict_parsing=True)
+            # PEP-594: cgi module will be removed in python 3.10 (status draft)
+            return cgi.FieldStorage(fp=io.BytesIO(self.body), environ=sandbox, strict_parsing=self.content_length > 0)
         except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 

@@ -15,11 +15,11 @@ Supports overlapping path segments: zero or more literal segments can overlap wi
 
 ```python
 @router.route('/abc/literal', methods=('GET',))
-def literal(req):
+def literal():
     pass
 
 @router.route('/abc/{variable}', methods=('GET',))
-def parametrized(req, variable: str):
+def parametrized(variable: str):
     pass
 ```
 
@@ -28,7 +28,7 @@ Multiple routes can point to same handler:
 ```python
 @router.route('/abc', methods=('GET',), defaults={'variable': None})
 @router.route('/abc/{variable}', methods=('GET',))
-def parametrized(req, variable: Optional[str]):
+def parametrized(variable: Optional[str]):
     pass
 ```
 
@@ -36,11 +36,11 @@ Content negotiation:
 
 ```python
 @router.route('/get', methods=('GET',), produces='application/json')
-def get(req) -> dict:
+def get() -> dict:
     return {'field': 'value'}
 
 @router.route('/post', methods=('POST',), consumes='application/json')
-def post_with_json(req) -> Tuple[int]:
+def post_with_json(req: Request) -> Tuple[int]:
     data = req.json
     return 204,
 ```
@@ -49,11 +49,11 @@ Query string and request body binding:
 
 ```python
 @router.route('/get', methods=('GET',), produces='application/json')
-def get(req, query: Query[dict]) -> dict:
+def get(query: Query[dict]) -> dict:
     return query
 
 @router.route('/post', methods=('POST',), consumes='application/json')
-def post_with_json(req, data: Body[dict]) -> Tuple[int]:
+def post_with_json(data: Body[dict]) -> Tuple[int]:
     # do something with data
     return 204,
 ```

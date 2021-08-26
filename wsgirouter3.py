@@ -210,13 +210,15 @@ class Request:
 
 @dataclass
 class WsgiAppConfig:
-    before_request: Optional[Callable[[Any], None]] = None
+    before_request: Optional[Callable[[Request], None]] = None
     after_request: Optional[Callable[[int, dict, dict], None]] = None
-    request_factory: Callable[['WsgiAppConfig', dict], Any] = Request
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_content_length: Optional[int] = None
+
+    def request_factory(self, environ: dict) -> Request:
+        return Request(self, environ)
 
     def result_handler(self, environ: dict, result) -> Tuple[int, Iterable, dict]:
         status = HTTPStatus.OK
@@ -305,7 +307,7 @@ class WsgiApp:
         try:
             handler = self.router(environ)
 
-            request = self.config.request_factory(self.config, environ)
+            request = self.config.request_factory(environ)
             before_request = self.config.before_request
             if before_request is not None:
                 before_request(request)
@@ -334,12 +336,15 @@ class WsgiApp:
 
 class Endpoint:
     __slots__ = (
-        'handler', 'defaults', 'options', 'route_path', 'consumes', 'produces', 'query_binding', 'body_binding'
+        'handler', 'defaults', 'options', 'route_path', 'consumes', 'produces',
+        'query_binding', 'body_binding', 'request_binding'
     )
 
     def __init__(self, handler: Callable, defaults: Optional[dict], options: Any, route_path: str,
                  consumes: Optional[str], produces: Optional[str],
-                 query_binding: Optional[Tuple[str, Any]], body_binding: Optional[Tuple[str, Any]]) -> None:
+                 query_binding: Optional[Tuple[str, Any]],
+                 body_binding: Optional[Tuple[str, Any]],
+                 request_binding: Optional[Tuple[str, Any]]) -> None:
         self.handler = handler
         self.defaults = dict(defaults) if defaults else _NO_ENDPOINT_DEFAULTS
         self.options = options
@@ -348,27 +353,30 @@ class Endpoint:
         self.produces = produces
         self.query_binding = query_binding
         self.body_binding = body_binding
+        self.request_binding = request_binding
 
-        if query_binding is not None or body_binding is not None:
-            @functools.wraps(handler)
-            def binding_handler(request, *args, **kwargs):
-                if query_binding:
-                    data = request.query_parameters
-                    kwargs[query_binding[0]] = request.config.binder(data, query_binding[1])
+        @functools.wraps(handler)
+        def binding_handler(request, *args, **kwargs):
+            if query_binding:
+                data = request.query_parameters
+                kwargs[query_binding[0]] = request.config.binder(data, query_binding[1])
 
-                if body_binding:
-                    if request.content_type == _CONTENT_TYPE_APPLICATION_JSON:
-                        data = request.json
-                    elif request.content_type == _CONTENT_TYPE_MULTIPART_FORM_DATA:
-                        data = request.form
-                    else:
-                        raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+            if body_binding:
+                if request.content_type == _CONTENT_TYPE_APPLICATION_JSON:
+                    data = request.json
+                elif request.content_type == _CONTENT_TYPE_MULTIPART_FORM_DATA:
+                    data = request.form
+                else:
+                    raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
-                    kwargs[body_binding[0]] = request.config.binder(data, body_binding[1])
+                kwargs[body_binding[0]] = request.config.binder(data, body_binding[1])
 
-                return handler(request, *args, **kwargs)
+            if request_binding:
+                kwargs[request_binding[0]] = request
 
-            self.handler = binding_handler
+            return handler(*args, **kwargs)
+
+        self.handler = binding_handler
 
 
 class PathEntry:
@@ -544,16 +552,10 @@ class PathRouter:
         entry, parameter_names = self.parse_route_path(route_path, signature)
 
         handler_parameters = list(signature.parameters.values())
-        if not handler_parameters:
-            raise ValueError(f'{route_path}: missing context parameter')
-
-        # skip first parameter (request handling context)
-        context_parameter = handler_parameters.pop(0)
-        if context_parameter.kind not in _SIGNATURE_CONTEXT_PARAMETER_KINDS:
-            raise ValueError(f'{route_path}: incompatible context parameter {context_parameter.name}')
 
         query_binding = self.get_binding_parameter(route_path, parameter_names, handler_parameters, Query)
         body_binding = self.get_binding_parameter(route_path, parameter_names, handler_parameters, Body)
+        request_binding = self.get_binding_parameter(route_path, parameter_names, handler_parameters, Request)
 
         if defaults is not None:
             compatible = {p.name for p in handler_parameters if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
@@ -575,9 +577,16 @@ class PathRouter:
         if existing:
             raise ValueError(f'{route_path}: redefinition of handler for method(s) {", ".join(existing)}')
 
-        route_options = self.default_options if options is None else options
         endpoint = Endpoint(
-            handler, defaults, route_options, route_path, consumes, produces, query_binding, body_binding
+            handler,
+            defaults,
+            self.default_options if options is None else options,
+            route_path,
+            consumes,
+            produces,
+            query_binding,
+            body_binding,
+            request_binding
         )
         entry.add_endpoint(methods, endpoint)
 
@@ -654,7 +663,10 @@ class PathRouter:
                               parameter_names: Set[str],
                               parameters: list,
                               binding_type) -> Optional[Tuple[str, Any]]:
-        bindings = [p for p in parameters if typing.get_origin(p.annotation) is binding_type]
+        if binding_type is Request:
+            bindings = [p for p in parameters if p.annotation is binding_type]
+        else:
+            bindings = [p for p in parameters if typing.get_origin(p.annotation) is binding_type]
         if len(bindings) > 1:
             raise ValueError(f'{route_path}: too many {binding_type.__name__}[] annotated parameters')
 
@@ -668,7 +680,8 @@ class PathRouter:
         binding_name = bp.name
         parameter_names.add(binding_name)
 
-        return (binding_name, typing.get_args(bp.annotation)[0])
+        args = typing.get_args(bp.annotation)
+        return (binding_name, args[0] if len(args) == 1 else binding_type)
 
 
 class PathPrefixMatchingRouter:

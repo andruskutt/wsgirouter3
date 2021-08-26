@@ -319,7 +319,7 @@ def test_dataclass_response():
 
     response = Sample(1, 'abc')
     router = PathRouter()
-    router.add_route(url, ('GET',), lambda req: response)
+    router.add_route(url, ('GET',), lambda: response)
     app = WsgiApp(router)
 
     def start_response(status, headers):
@@ -342,7 +342,7 @@ def test_generator_response():
     # generator is passed as is
     assert WsgiAppConfig().result_handler(env, g) == (HTTPStatus.OK, g, {})
 
-    def endpoint(req):
+    def endpoint():
         return generator()
 
     router = PathRouter()
@@ -367,7 +367,7 @@ def test_custom_response():
     router = PathRouter()
 
     @router.route(url, ('GET',))
-    def endpoint(req):
+    def endpoint():
         return (200, Custom(result))
 
     def result_converter(result: Custom, headers: dict):
@@ -396,11 +396,11 @@ def test_request_content_negotiation():
     router = PathRouter()
 
     @router.route(text_url, ('GET',), consumes='text/plain')
-    def text_endpoint(req):
+    def text_endpoint():
         return (204,)
 
     @router.route(json_url, ('GET',), consumes='application/json')
-    def json_endpoint(req):
+    def json_endpoint():
         return (204,)
 
     app = WsgiApp(router)
@@ -421,7 +421,7 @@ def test_response_content_negotiation():
     router = PathRouter()
 
     @router.route(url, ('GET',), produces='application/json')
-    def json_endpoint(req) -> dict:
+    def json_endpoint() -> dict:
         return {'a': 1}
 
     app = WsgiApp(router)
@@ -457,7 +457,7 @@ def test_hooks():
         nonlocal before_request_called
         before_request_called = True
 
-    def endpoint(r):
+    def endpoint():
         nonlocal endpoint_called
         endpoint_called = True
         return 200, '01234'
@@ -481,7 +481,7 @@ def test_hooks():
 def test_wsgi_application():
     env = {'REQUEST_METHOD': 'GET'}
 
-    def handler(req):
+    def handler():
         return {}
 
     def router(e):
@@ -509,7 +509,7 @@ def test_wsgi_application():
     url = '/url'
     r = PathRouter()
 
-    r.add_route(url, ('GET',), lambda req: {})
+    r.add_route(url, ('GET',), lambda: {})
     app = WsgiApp(r)
     env = {'REQUEST_METHOD': 'POST', 'PATH_INFO': url}
     assert app(env, start_response) == (_http_status_response(HTTPStatus.METHOD_NOT_ALLOWED).encode(),)
@@ -539,7 +539,7 @@ def test_wsgi_application():
 def test_wsgi_application_head_method():
     url = '/url'
     r = PathRouter()
-    r.add_route(url, ('GET',), lambda req: {})
+    r.add_route(url, ('GET',), lambda: {})
     app = WsgiApp(r)
 
     got_headers = None
@@ -554,7 +554,7 @@ def test_wsgi_application_head_method():
     assert any('Allow' == r[0] for r in got_headers)
 
     url = '/url/withhead'
-    r.add_route(url, ('GET', 'HEAD'), lambda req: {})
+    r.add_route(url, ('GET', 'HEAD'), lambda: {})
 
     env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
     assert app(env, start_response) == (b'{}',)
@@ -567,7 +567,7 @@ def test_wsgi_application_generator_head_method():
     url = '/url'
     env = {'REQUEST_METHOD': 'HEAD', 'PATH_INFO': url}
 
-    def endpoint(req):
+    def endpoint():
         i = 0
         while i < 5:
             yield str(i)
@@ -590,7 +590,7 @@ def test_query_binding():
     router = PathRouter()
 
     @router.route(url, ('GET',))
-    def endpoint(req, query: Query[dict]) -> dict:
+    def endpoint(query: Query[dict]) -> dict:
         return query
 
     app = WsgiApp(router)
@@ -615,7 +615,7 @@ def test_body_binding_json():
     router = PathRouter()
 
     @router.route(url, ('POST',))
-    def endpoint(req, body: Body[dict]) -> dict:
+    def endpoint(body: Body[dict]) -> dict:
         return body
 
     app = WsgiApp(router)
@@ -641,7 +641,7 @@ def test_body_binding_form():
     router = PathRouter()
 
     @router.route(url, ('POST',))
-    def endpoint(req, body: Body[cgi.FieldStorage]) -> dict:
+    def endpoint(body: Body[cgi.FieldStorage]) -> dict:
         return {key: body.getfirst(key) for key in body.keys()}
 
     app = WsgiApp(router)
@@ -666,7 +666,7 @@ def test_body_binding_bad_datatype():
     router = PathRouter()
 
     @router.route(url, ('POST',))
-    def endpoint(req, body: Body[list]) -> dict:
+    def endpoint(body: Body[list]) -> dict:
         return body
 
     app = WsgiApp(router)
@@ -691,7 +691,7 @@ def test_body_binding_bad_content_type():
     router = PathRouter()
 
     @router.route(url, ('POST',))
-    def endpoint(req, body: Body[dict]) -> dict:
+    def endpoint(body: Body[dict]) -> dict:
         return body
 
     app = WsgiApp(router)
@@ -700,6 +700,27 @@ def test_body_binding_bad_content_type():
         pass
 
     assert b''.join(app(env, start_response)) == _http_status_response(HTTPStatus.UNSUPPORTED_MEDIA_TYPE).encode()
+
+
+def test_request_binding():
+    url = '/url'
+    env = {
+        'REQUEST_METHOD': 'GET',
+        'PATH_INFO': url,
+    }
+
+    router = PathRouter()
+
+    @router.route(url, ('GET',))
+    def endpoint(request: Request) -> dict:
+        return {'method': request.method}
+
+    app = WsgiApp(router)
+
+    def start_response(status, headers):
+        pass
+
+    assert b''.join(app(env, start_response)) == b'{"method": "GET"}'
 
 
 def test_cached_property():

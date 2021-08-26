@@ -4,7 +4,7 @@ from typing import Optional
 
 import pytest
 
-from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathPrefixMatchingRouter, PathRouter, Query
+from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathPrefixMatchingRouter, PathRouter, Query, Request
 
 
 def test_str_routes():
@@ -18,15 +18,15 @@ def test_str_routes():
     r.add_route('/{req}/subpath', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/abc'}
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 'abc'})
 
     environ['PATH_INFO'] = '/def/subpath'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 'def'})
 
     environ['PATH_INFO'] = '/ghi'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 'ghi'})
 
     environ['PATH_INFO'] = '/jkl/mismatch'
@@ -46,15 +46,15 @@ def test_bool_routes():
     r.add_route('/{req}/subpath', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/true'}
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': True})
 
     environ['PATH_INFO'] = '/false/subpath'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': False})
 
     environ['PATH_INFO'] = '/on'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': True})
 
     environ['PATH_INFO'] = '/abc'
@@ -81,23 +81,23 @@ def test_int_routes():
     r.add_route('/{req}/subpath', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/123'}
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 123})
 
     environ['PATH_INFO'] = '/456/subpath'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 456})
 
     environ['PATH_INFO'] = '/-456/subpath'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': -456})
 
     environ['PATH_INFO'] = '/789'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 789})
 
     environ['PATH_INFO'] = '/-789'
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': -789})
 
     environ['PATH_INFO'] = '/abc'
@@ -123,30 +123,13 @@ def test_optional_routes():
     r.add_route('/{req}', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/123'}
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 123})
-
-
-def test_bad_handler():
-    r = PathRouter()
-    methods = ('GET',)
-
-    def handler_without_context():
-        pass
-
-    with pytest.raises(ValueError, match='missing context parameter'):
-        r.add_route('/', methods, handler_without_context)
-
-    def handler_keyword_only_context(*, ctx):
-        pass
-
-    with pytest.raises(ValueError, match='incompatible context parameter'):
-        r.add_route('/', methods, handler_keyword_only_context)
 
 
 def test_add_bad_routes():
     r = PathRouter()
-    url = '/'
+    url = '/{req}'
     methods = ('GET',)
 
     def handler(req: str):
@@ -176,7 +159,7 @@ def test_match_bad_routes(url):
     r = PathRouter()
     methods = ('GET',)
 
-    def handler(req: str):
+    def handler():
         pass
 
     r.add_route(url, methods, handler)
@@ -195,15 +178,15 @@ def test_trailing_slash():
     url = '/'
     methods = ('GET',)
 
-    def handler(req: str):
+    def handler():
         pass
 
     r.add_route(url, methods, handler)
-    assert r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url}) == handler
+    assert r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url}).__wrapped__ == handler
 
     url = '/trailing'
     r.add_route(url, methods, handler)
-    assert r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url}) == handler
+    assert r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url}).__wrapped__ == handler
 
     with pytest.raises(NotFoundError, match='/trailing/'):
         r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url + '/'})
@@ -217,7 +200,7 @@ def test_method_matching():
     url = '/abc'
     methods = ('GET',)
 
-    def handler(req):
+    def handler():
         pass
 
     r = PathRouter()
@@ -228,7 +211,7 @@ def test_method_matching():
         r(environ)
 
     environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
-    assert r(environ) == handler
+    assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {})
 
 
@@ -271,7 +254,14 @@ def test_bad_path_parameters():
     with pytest.raises(ValueError, match='incompatible path parameter req'):
         r.add_route('/{req}/path', methods, inthandler)
 
-    # XXX: cannot test positional-only parameter handling
+    def argshandler(*args):
+        pass
+
+    with pytest.raises(ValueError, match='path parameter notdefined not defined in handler'):
+        r.add_route('/{notdefined}', methods, argshandler)
+
+    with pytest.raises(ValueError, match='path parameter args value passing by keyword not supported'):
+        r.add_route('/{args}', methods, argshandler)
 
     def kwhandler(**kwargs):
         pass
@@ -293,13 +283,13 @@ def test_path_parameter_typings():
     with pytest.raises(ValueError, match='missing type annotation'):
         r.add_route('/prefix/{param}/path', methods, handler)
 
-    def inthandler(req, int_param: int):
+    def inthandler(int_param: int):
         pass
 
     # missing type in route: type is taken from signature
     r.add_route('/{int_param}/path', methods, inthandler)
 
-    def floathandler(req, float_param: float):
+    def floathandler(float_param: float):
         pass
 
     with pytest.raises(ValueError, match='unknown path parameter float_param type'):
@@ -311,7 +301,7 @@ def test_partial_path():
     r = PathRouter()
 
     @r.route(url + '/some/suffix', ('GET',))
-    def handler(req):
+    def handler():
         pass
 
     environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
@@ -323,7 +313,7 @@ def test_path_parameter_defaults():
     r = PathRouter()
     methods = ('GET',)
 
-    def handler(req, str_param: str, int_param: int, bool_param: bool, **kwargs):
+    def handler(str_param: str, int_param: int, bool_param: bool, **kwargs):
         pass
 
     with pytest.raises(ValueError, match='cannot used as parameters'):
@@ -347,13 +337,13 @@ def test_bad_query_binding_parameter():
     r = PathRouter()
     methods = ('GET',)
 
-    def too_many_queries(req, query1: Query[dict], query2: Query[dict]):
+    def too_many_queries(query1: Query[dict], query2: Query[dict]):
         pass
 
     with pytest.raises(ValueError, match='too many Query'):
         r.add_route('/', methods, too_many_queries)
 
-    def only_positional_query(req, *query: Query[dict]):
+    def only_positional_query(*query: Query[dict]):
         pass
 
     with pytest.raises(ValueError, match='incompatible binding parameter query'):
@@ -364,13 +354,13 @@ def test_bad_body_binding_parameter():
     r = PathRouter()
     methods = ('GET',)
 
-    def too_many_bodies(req, body1: Body[dict], body2: Body[list]):
+    def too_many_bodies(body1: Body[dict], body2: Body[list]):
         pass
 
     with pytest.raises(ValueError, match='too many Body'):
         r.add_route('/', methods, too_many_bodies)
 
-    def only_positional_body(req, *body: Body[dict]):
+    def only_positional_body(*body: Body[dict]):
         pass
 
     with pytest.raises(ValueError, match='incompatible binding parameter body'):
@@ -381,17 +371,27 @@ def test_body_binding_parameter():
     r = PathRouter()
     methods = ('GET',)
 
-    def with_body(req, body: Body[dict]):
+    def with_body(body: Body[dict]):
         pass
 
     r.add_route('/', methods, with_body)
+
+
+def test_request_binding_parameter():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def with_request(request: Request):
+        pass
+
+    r.add_route('/', methods, with_request)
 
 
 def test_overlapping_path_segments():
     r = PathRouter()
     methods = ('GET',)
 
-    def handler(req, variable: str):
+    def handler(variable: str):
         pass
 
     # route url, example request url, parameters from url, defaults
@@ -406,7 +406,7 @@ def test_overlapping_path_segments():
 
     for route, url, args, defaults in paths:
         environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': (url or route)}
-        assert r(environ) == handler
+        assert r(environ).__wrapped__ == handler
         assert environ[r.routing_args_key] == ((), {**args, **(defaults or {})})
 
 

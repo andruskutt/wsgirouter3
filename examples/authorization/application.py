@@ -13,12 +13,12 @@ _PUBLIC_ROUTE = {'authorization': False}
 
 # assume by default routes are secured (no options given to route)
 @router.route('/get', methods=('GET',))
-def secured_handler(request: Request) -> dict:
+def secured_handler() -> dict:
     # dict is converted to json
-    return request.environ
+    return {}
 
 
-# public route as exceptional case (options with flag)
+# public route as exceptional case (options to route with flag)
 @router.route('/public/get', methods=('GET',), options=_PUBLIC_ROUTE)
 def public_handler(request: Request) -> dict:
     # remove values not supported by default json serialization

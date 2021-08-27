@@ -358,23 +358,23 @@ class Endpoint:
         self.request_binding = request_binding
 
         @functools.wraps(handler)
-        def binding_handler(request, *args, **kwargs):
-            if query_binding:
-                data = request.query_parameters
-                kwargs[query_binding[0]] = request.config.binder(data, query_binding[1])
+        def binding_handler(__req, *args, **kwargs):
+            if query_binding is not None:
+                data = __req.query_parameters
+                kwargs[query_binding[0]] = __req.config.binder(data, query_binding[1])
 
-            if body_binding:
-                if request.content_type == _CONTENT_TYPE_APPLICATION_JSON:
-                    data = request.json
-                elif request.content_type == _CONTENT_TYPE_MULTIPART_FORM_DATA:
-                    data = request.form
+            if body_binding is not None:
+                if __req.content_type == _CONTENT_TYPE_APPLICATION_JSON:
+                    data = __req.json
+                elif __req.content_type in _FORM_CONTENT_TYPES:
+                    data = __req.form
                 else:
                     raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
-                kwargs[body_binding[0]] = request.config.binder(data, body_binding[1])
+                kwargs[body_binding[0]] = __req.config.binder(data, body_binding[1])
 
-            if request_binding:
-                kwargs[request_binding[0]] = request
+            if request_binding is not None:
+                kwargs[request_binding[0]] = __req
 
             return handler(*args, **kwargs)
 
@@ -628,6 +628,9 @@ class PathRouter:
                     if not (isinstance(entry.parameter, factory) and entry.parameter.name == parameter_name):
                         raise ValueError(f'{route_path}: incompatible path parameter {parameter_name}')
                 else:
+                    if parameter_name == '__req':
+                        raise ValueError(f'{route_path}: reserved path parameter name {parameter_name}')
+
                     if parameter_name in parameter_names:
                         raise ValueError(f'{route_path}: duplicate path parameter {parameter_name}')
 

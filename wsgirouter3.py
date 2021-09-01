@@ -111,7 +111,7 @@ class HTTPError(Exception):
 
 
 class NotFoundError(HTTPError):
-    def __init__(self, path_info: str) -> None:
+    def __init__(self, path_info: Optional[str]) -> None:
         super().__init__(HTTPStatus.NOT_FOUND)
         self.path_info = path_info
 
@@ -123,7 +123,7 @@ class MethodNotAllowedError(HTTPError):
 
 
 class Request:
-    def __init__(self, config: 'WsgiAppConfig', environ: dict) -> None:
+    def __init__(self, config: 'WsgiAppConfig', environ: Dict[str, Any]) -> None:
         self.config = config
         self.environ = environ
 
@@ -213,16 +213,16 @@ class Request:
 @dataclass
 class WsgiAppConfig:
     before_request: Optional[Callable[[Request], None]] = None
-    after_request: Optional[Callable[[int, dict, dict], None]] = None
+    after_request: Optional[Callable[[int, dict, Dict[str, Any]], None]] = None
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_content_length: Optional[int] = None
 
-    def request_factory(self, environ: dict) -> Request:
+    def request_factory(self, environ: Dict[str, Any]) -> Request:
         return Request(self, environ)
 
-    def result_handler(self, environ: dict, result) -> Tuple[int, Iterable, dict]:
+    def result_handler(self, environ: Dict[str, Any], result: Any) -> Tuple[int, Iterable, dict]:
         status = HTTPStatus.OK
         headers = {}
         if isinstance(result, tuple):
@@ -259,7 +259,7 @@ class WsgiAppConfig:
 
         return status, result, headers
 
-    def custom_result_handler(self, result, headers: dict) -> Iterable:
+    def custom_result_handler(self, result: Any, headers: dict) -> Iterable:
         for matcher, handler in self.result_converters:
             if matcher(result):
                 return handler(result, headers)
@@ -270,28 +270,28 @@ class WsgiAppConfig:
 
         return self.json_result_handler(dataclass_asdict(result), headers)
 
-    def json_result_handler(self, result, headers: dict) -> Tuple[bytes]:
+    def json_result_handler(self, result: Any, headers: dict) -> Iterable:
         response = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
         headers[_CONTENT_LENGTH_HEADER] = str(len(response))
         return response,
 
-    def error_handler(self, environ: dict, exc: Exception) -> tuple:
+    def error_handler(self, environ: Dict[str, Any], exc: Exception) -> Any:
         if not isinstance(exc, HTTPError):
             self.logger.exception('Unhandled exception', exc_info=exc)
 
             exc = HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR)
 
-        return exc.status, exc.result, exc.headers or {}
+        return exc.status, exc.result, exc.headers
 
-    def json_deserializer(self, obj: bytes):
+    def json_deserializer(self, obj: bytes) -> Any:
         return json.loads(obj)
 
-    def json_serializer(self, obj) -> bytes:
+    def json_serializer(self, obj: Any) -> bytes:
         # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
         return json.dumps(obj).encode()
 
-    def binder(self, data, result_type):
+    def binder(self, data: Any, result_type: Any) -> Any:
         if not isinstance(data, result_type):
             raise HTTPError(HTTPStatus.BAD_REQUEST)
 
@@ -300,12 +300,12 @@ class WsgiAppConfig:
 
 class WsgiApp:
     def __init__(self,
-                 router: Callable[[dict], Callable],
+                 router: Callable[[Dict[str, Any]], Callable],
                  config: Optional[WsgiAppConfig] = None) -> None:
         self.router = router
         self.config = config or WsgiAppConfig()
 
-    def __call__(self, environ: Dict[str, Any], start_response: Callable) -> Iterable:
+    def __call__(self, environ: Dict[str, Any], start_response: Callable[[str, List[tuple]], Any]) -> Iterable:
         try:
             handler = self.router(environ)
 
@@ -342,7 +342,8 @@ class Endpoint:
         'query_binding', 'body_binding', 'request_binding'
     )
 
-    def __init__(self, handler: Callable, defaults: Optional[dict], options: Any, route_path: str,
+    def __init__(self, handler: Callable,
+                 defaults: Optional[Dict[str, Any]], options: Any, route_path: str,
                  consumes: Optional[str], produces: Optional[str],
                  query_binding: Optional[Tuple[str, Any]],
                  body_binding: Optional[Tuple[str, Any]],
@@ -358,7 +359,7 @@ class Endpoint:
         self.request_binding = request_binding
 
         @functools.wraps(handler)
-        def binding_handler(__req, *args, **kwargs):
+        def binding_handler(__req: Request, *args, **kwargs) -> Any:
             if query_binding is not None:
                 data = __req.query_parameters
                 kwargs[query_binding[0]] = __req.config.binder(data, query_binding[1])
@@ -431,7 +432,7 @@ class BoolPathParameter(PathParameter):
     def match(self, path_segment: str) -> bool:
         return path_segment in _BOOL_VALUES
 
-    def accept(self, kwargs: dict, path_segment: str) -> None:
+    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
         kwargs[self.name] = path_segment in _BOOL_TRUE_VALUES
 
 
@@ -440,7 +441,7 @@ class IntPathParameter(PathParameter):
     def match(self, path_segment: str) -> bool:
         return bool(path_segment and (path_segment[1:] if path_segment[0] == '-' else path_segment).isdigit())
 
-    def accept(self, kwargs: dict, path_segment: str) -> None:
+    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
         kwargs[self.name] = int(path_segment)
 
 
@@ -450,7 +451,7 @@ class StringPathParameter(PathParameter):
         # do not allow zero-length strings
         return bool(path_segment)
 
-    def accept(self, kwargs: dict, path_segment: str) -> None:
+    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
         # XXX should decode path segment?
         kwargs[self.name] = path_segment
 
@@ -535,7 +536,7 @@ class PathRouter:
     def route(self,
               route_path: str,
               methods: Iterable[str],
-              defaults: Optional[dict] = None,
+              defaults: Optional[Dict[str, Any]] = None,
               options: Any = None,
               consumes: Optional[str] = None,
               produces: Optional[str] = None) -> Callable:
@@ -549,7 +550,7 @@ class PathRouter:
                   route_path: str,
                   methods: Iterable[str],
                   handler: Callable,
-                  defaults: Optional[dict] = None,
+                  defaults: Optional[Dict[str, Any]] = None,
                   options: Any = None,
                   consumes: Optional[str] = None,
                   produces: Optional[str] = None) -> None:
@@ -608,7 +609,7 @@ class PathRouter:
 
         entry.subrouter = router
 
-    def parse_route_path(self, route_path: str, signature: Optional[inspect.Signature]) -> Tuple[PathEntry, set]:
+    def parse_route_path(self, route_path: str, signature: Optional[inspect.Signature]) -> Tuple[PathEntry, Set[str]]:
         entry = self.root
         parameter_names: Set[str] = set()
 
@@ -653,7 +654,7 @@ class PathRouter:
                         signature: inspect.Signature) -> Tuple[Type[PathParameter], str]:
         suffix_length = -len(self.path_parameter_end) if self.path_parameter_end else None
         parameter_name = parameter[len(self.path_parameter_start):suffix_length]
-        if not ((not suffix_length or parameter.endswith(self.path_parameter_end)) and parameter_name):
+        if not parameter_name or (self.path_parameter_end and not parameter.endswith(self.path_parameter_end)):
             raise ValueError(f'{route_path}: invalid path parameter definition {parameter}')
 
         try:
@@ -713,6 +714,6 @@ def _parse_header(header: Optional[str]) -> Optional[str]:
     return header.split(';', 1)[0].strip().lower() if header else None
 
 
-def _split_route_path(route_path: str) -> list:
+def _split_route_path(route_path: str) -> List[str]:
     path_segments = route_path.split(_PATH_SEPARATOR)
     return path_segments[1:] if route_path.startswith(_PATH_SEPARATOR) else path_segments

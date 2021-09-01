@@ -400,8 +400,8 @@ class PathEntry:
             return self.parameter
 
         if self.subrouter is not None:
-            # delegate to subrouter
-            # XXX adjust SCRIPT_NAME and PATH_INFO?
+            # continue using subrouter routing tree
+            # adjusting of SCRIPT_NAME and PATH_INFO is not required
             return self.subrouter.root[path_segment]
 
         # no match
@@ -502,6 +502,7 @@ class PathRouter:
         endpoint = self.negotiate_endpoint(environ, entry)
 
         environ[self.options_key] = endpoint.options
+        # XXX this contains only part of actual path in case of subrouter
         environ[self.path_key] = endpoint.route_path
         environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, {**endpoint.defaults, **path_args})
         return endpoint.handler

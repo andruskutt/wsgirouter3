@@ -19,7 +19,7 @@ def literal():
     pass
 
 @router.route('/abc/{variable}', methods=('GET',))
-def parametrized(variable: str):
+def parameterized(variable: str):
     pass
 ```
 
@@ -28,7 +28,7 @@ Multiple routes can point to same handler:
 ```python
 @router.route('/abc', methods=('GET',), defaults={'variable': None})
 @router.route('/abc/{variable}', methods=('GET',))
-def parametrized(variable: Optional[str]):
+def with_optional_parameter(variable: Optional[str]):
     pass
 ```
 

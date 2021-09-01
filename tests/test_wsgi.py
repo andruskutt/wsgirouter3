@@ -228,9 +228,9 @@ def test_request_json():
         'wsgi.input': io.BytesIO(json_bytes),
         'CONTENT_LENGTH': f'{len(json_bytes)}',
     }
-    app = WsgiApp(None)
-    app.config.json_deserializer = functools.partial(json.loads, cls=JSONDecoder)
-    r = Request(app.config, env)
+    config = WsgiAppConfig()
+    config.json_deserializer = functools.partial(json.loads, cls=JSONDecoder)
+    r = Request(config, env)
     assert r.json == {'A': 1, 'B': True, 'C': None, 'D': decimal.Decimal('0.1')}
 
 
@@ -241,9 +241,9 @@ def test_request_json_orjson():
         'wsgi.input': io.BytesIO(json_bytes),
         'CONTENT_LENGTH': f'{len(json_bytes)}',
     }
-    app = WsgiApp(None)
-    app.config.json_deserializer = orjson.loads
-    r = Request(app.config, env)
+    config = WsgiAppConfig()
+    config.json_deserializer = orjson.loads
+    r = Request(config, env)
     assert r.json == {'A': 1, 'B': True, 'C': None, 'D': 0.1}
 
 
@@ -254,9 +254,9 @@ def test_request_bad_json():
         'wsgi.input': io.BytesIO(json_bytes),
         'CONTENT_LENGTH': f'{len(json_bytes)}',
     }
-    app = WsgiApp(None)
-    app.config.json_deserializer = functools.partial(json.loads, cls=JSONDecoder)
-    r = Request(app.config, env)
+    config = WsgiAppConfig()
+    config.json_deserializer = functools.partial(json.loads, cls=JSONDecoder)
+    r = Request(config, env)
     with pytest.raises(HTTPError) as exc_info:
         r.json
     assert exc_info.value.args[0] == HTTPStatus.BAD_REQUEST

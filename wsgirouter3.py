@@ -17,14 +17,14 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Generator, Generic, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
 from urllib.parse import parse_qsl
 
 __all__ = [
     'ROUTE_OPTIONS_KEY', 'ROUTE_PATH_KEY', 'ROUTE_ROUTING_ARGS_KEY',
     'HTTPError', 'MethodNotAllowedError', 'NotFoundError',
-    'PathRouter', 'PathParameter',
-    'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body'
+    'PathRouter', 'PathParameter', 'RouteDefinition',
+    'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body',
 ]
 
 ROUTE_OPTIONS_KEY = 'route.options'
@@ -65,6 +65,8 @@ _BOOL_VALUES = frozenset(frozenset(('0', 'false', 'no', 'off')) | _BOOL_TRUE_VAL
 
 _NONE_TYPE = type(None)
 T = TypeVar('T')
+
+RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
 
 _NO_ENDPOINT_DEFAULTS: Dict[str, Any] = {}
 _NO_POSITIONAL_ARGS = ()
@@ -708,6 +710,34 @@ class PathRouter:
 
         args = typing.get_args(bp.annotation)
         return (binding_name, args[0] if len(args) == 1 else binding_type)
+
+    def get_routes(self) -> Tuple[RouteDefinition, ...]:
+        def walk_children(path: List[Union[str, PathParameter]],
+                          path_segment: Union[str, PathParameter],
+                          entry: PathEntry) -> Generator[RouteDefinition, None, None]:
+            path.append(path_segment)
+            try:
+                yield from walk_route_tree(path, entry)
+            finally:
+                path.pop()
+
+        def walk_route_tree(path: List[Union[str, PathParameter]],
+                            entry: PathEntry) -> Generator[RouteDefinition, None, None]:
+            for method, endpoint in entry.methodmap.items():
+                yield tuple(path), method, endpoint
+
+            for path_segment, subentry in entry.mapping.items():
+                yield from walk_children(path, path_segment, subentry)
+
+            parameter = entry.parameter
+            if parameter is not None:
+                yield from walk_children(path, parameter, parameter)
+
+            subrouter = entry.subrouter
+            if subrouter is not None:
+                yield from walk_route_tree(path, subrouter.root)
+
+        return tuple(walk_route_tree([], self.root))
 
 
 def _parse_header(header: Optional[str]) -> Optional[str]:

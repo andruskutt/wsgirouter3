@@ -463,3 +463,40 @@ def test_subrouter():
     assert router(environ).__wrapped__ == handler
     environ['PATH_INFO'] = prefix2 + url + '/subpath'
     assert router(environ).__wrapped__ == handler
+
+
+def test_get_routes():
+    def handler(value: str):
+        pass
+
+    router = PathRouter()
+
+    # no routes defined
+    assert router.get_routes() == ()
+
+    methods = ('GET',)
+
+    url = '/prefix1/{value}'
+    router.add_route(url, methods, handler)
+
+    routes = router.get_routes()
+    assert len(routes) == 1
+    path, method, _ = routes[0]
+    assert _convert_path(path) == url
+    assert method == methods[0]
+
+    subrouter = PathRouter()
+    subrouter.add_route(url, methods, handler)
+
+    prefix = '/subrouter'
+    router.add_subrouter(prefix, subrouter)
+
+    routes = router.get_routes()
+    assert len(routes) == 2
+    path, method, _ = routes[1]
+    assert _convert_path(path) == prefix + url
+    assert method == methods[0]
+
+
+def _convert_path(path):
+    return '/' + '/'.join(tuple(p if isinstance(p, str) else f'{{{p.name}}}' for p in path))

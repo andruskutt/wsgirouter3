@@ -42,7 +42,6 @@ _WSGI_CONTENT_LENGTH_HEADER = 'CONTENT_LENGTH'
 _WSGI_CONTENT_TYPE_HEADER = 'CONTENT_TYPE'
 _WSGI_PATH_INFO_HEADER = 'PATH_INFO'
 _WSGI_REQUEST_METHOD_HEADER = 'REQUEST_METHOD'
-_WSGI_SCRIPT_NAME_HEADER = 'SCRIPT_NAME'
 
 _FORM_CONTENT_TYPES = {_CONTENT_TYPE_MULTIPART_FORM_DATA, _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED}
 _FORM_DECODE_ENVIRONMENT_KEYS = {_WSGI_CONTENT_LENGTH_HEADER, _WSGI_CONTENT_TYPE_HEADER}
@@ -182,7 +181,7 @@ class Request:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
     @cached_property
-    def json(self):
+    def json(self) -> Any:
         if self.content_type != _CONTENT_TYPE_APPLICATION_JSON:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
@@ -192,7 +191,7 @@ class Request:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
     @cached_property
-    def query_parameters(self) -> dict:
+    def query_parameters(self) -> Dict[str, str]:
         qs = self.environ.get('QUERY_STRING')
         if not qs:
             return {}
@@ -690,8 +689,8 @@ class PathRouter:
     def get_binding_parameter(self,
                               route_path: str,
                               parameter_names: Set[str],
-                              parameters: list,
-                              binding_type) -> Optional[Tuple[str, Any]]:
+                              parameters: List[inspect.Parameter],
+                              binding_type: Any) -> Optional[Tuple[str, Any]]:
         if binding_type is Request:
             bindings = [p for p in parameters if p.annotation is binding_type]
         else:

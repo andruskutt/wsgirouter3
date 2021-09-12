@@ -458,11 +458,7 @@ class StringPathParameter(PathParameter):
         kwargs[self.name] = path_segment
 
 
-# duplicate definitions by PEP-563
 _DEFAULT_PARAMETER_TYPE_MAP = {
-    'bool': BoolPathParameter,
-    'int': IntPathParameter,
-    'str': StringPathParameter,
     bool: BoolPathParameter,
     int: IntPathParameter,
     str: StringPathParameter,
@@ -560,8 +556,9 @@ class PathRouter:
         if not methods:
             raise ValueError(f'{route_path}: no methods defined')
 
+        type_hints = typing.get_type_hints(handler)
         signature = inspect.signature(handler)
-        entry, parameter_names = self.parse_route_path(route_path, signature)
+        entry, parameter_names = self.parse_route_path(route_path, signature, type_hints)
 
         handler_parameters = list(signature.parameters.values())
 
@@ -603,7 +600,7 @@ class PathRouter:
         entry.add_endpoint(methods, endpoint)
 
     def add_subrouter(self, route_path: str, router: 'PathRouter') -> None:
-        entry, _ = self.parse_route_path(route_path, None)
+        entry, _ = self.parse_route_path(route_path, None, None)
         if entry is self.root:
             raise ValueError(f'{route_path}: missing path prefix for subrouter')
 
@@ -612,7 +609,10 @@ class PathRouter:
 
         entry.subrouter = router
 
-    def parse_route_path(self, route_path: str, signature: Optional[inspect.Signature]) -> Tuple[PathEntry, Set[str]]:
+    def parse_route_path(self,
+                         route_path: str,
+                         signature: Optional[inspect.Signature],
+                         type_hints: Optional[Dict[str, Any]]) -> Tuple[PathEntry, Set[str]]:
         entry = self.root
         parameter_names: Set[str] = set()
 
@@ -627,7 +627,7 @@ class PathRouter:
                 if signature is None:
                     raise ValueError(f'{route_path}: parameters are not allowed')
 
-                factory, parameter_name = self.parse_parameter(path_segment, route_path, signature)
+                factory, parameter_name = self.parse_parameter(path_segment, route_path, signature, type_hints)
                 if entry.parameter:
                     if not (isinstance(entry.parameter, factory) and entry.parameter.name == parameter_name):
                         raise ValueError(f'{route_path}: incompatible path parameter {parameter_name}')
@@ -654,7 +654,8 @@ class PathRouter:
     def parse_parameter(self,
                         parameter: str,
                         route_path: str,
-                        signature: inspect.Signature) -> Tuple[Type[PathParameter], str]:
+                        signature: inspect.Signature,
+                        type_hints: Dict[str, Any]) -> Tuple[Type[PathParameter], str]:
         suffix_length = -len(self.path_parameter_end) if self.path_parameter_end else None
         parameter_name = parameter[len(self.path_parameter_start):suffix_length]
         if not parameter_name or (self.path_parameter_end and not parameter.endswith(self.path_parameter_end)):
@@ -668,15 +669,15 @@ class PathRouter:
         if parameter_signature.kind not in _SIGNATURE_ALLOWED_PARAMETER_KINDS:
             raise ValueError(f'{route_path}: path parameter {parameter_name} value passing by keyword not supported')
 
-        annotation = parameter_signature.annotation
-        if annotation == inspect.Parameter.empty:
+        annotation = type_hints.get(parameter_name)
+        if annotation is None:
             raise ValueError(f'{route_path}: path parameter {parameter_name} missing type annotation')
 
         # unwrap possible Optional[x]/Union[x, None]
         origin = typing.get_origin(annotation)
         if origin is Union:
-            union_args = typing.get_args(annotation)
-            if len(union_args) == 2 and union_args[1] is _NONE_TYPE:
+            union_args = [a for a in typing.get_args(annotation) if a is not _NONE_TYPE]
+            if len(union_args) == 1:
                 annotation = union_args[0]
 
         try:

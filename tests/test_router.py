@@ -361,6 +361,12 @@ def test_bad_query_binding_parameter():
     with pytest.raises(ValueError, match='incompatible binding parameter query'):
         r.add_route('/', methods, only_positional_query)
 
+    def query_generic_without_t(query: Query):
+        pass
+
+    with pytest.raises(ValueError, match='parameters query are not initialized'):
+        r.add_route('/', methods, query_generic_without_t)
+
 
 def test_bad_body_binding_parameter():
     r = PathRouter()

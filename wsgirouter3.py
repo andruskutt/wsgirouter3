@@ -559,20 +559,20 @@ class PathRouter:
         signature = inspect.signature(handler)
         entry, parameter_names = self.parse_route_path(route_path, signature, type_hints)
 
-        handler_parameters = list(signature.parameters.values())
+        parameters = list(signature.parameters.values())
 
-        query_binding = self.get_binding_parameter(route_path, parameter_names, handler_parameters, Query)
-        body_binding = self.get_binding_parameter(route_path, parameter_names, handler_parameters, Body)
-        request_binding = self.get_binding_parameter(route_path, parameter_names, handler_parameters, Request)
+        query_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Query)
+        body_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Body)
+        request_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Request)
 
         if defaults is not None:
-            compatible = {p.name for p in handler_parameters if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
+            compatible = {p.name for p in parameters if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
             incompatible = frozenset(defaults) - compatible
             if incompatible:
                 raise ValueError(f'{route_path}: defaults {", ".join(incompatible)} cannot used as parameters')
 
         # check that all handler parameters are set or have default values
-        required_parameters = {p.name for p in handler_parameters
+        required_parameters = {p.name for p in parameters
                                if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS and p.default is inspect.Parameter.empty}
 
         missing_parameters = required_parameters - parameter_names
@@ -690,11 +690,12 @@ class PathRouter:
                               route_path: str,
                               parameter_names: Set[str],
                               parameters: List[inspect.Parameter],
+                              type_hints: Dict[str, Any],
                               binding_type: Any) -> Optional[Tuple[str, Any]]:
         if binding_type is Request:
-            bindings = [p for p in parameters if p.annotation is binding_type]
+            bindings = [p for p in parameters if type_hints.get(p.name) is binding_type]
         else:
-            bindings = [p for p in parameters if typing.get_origin(p.annotation) is binding_type]
+            bindings = [p for p in parameters if typing.get_origin(type_hints.get(p.name)) is binding_type]
         if len(bindings) > 1:
             raise ValueError(f'{route_path}: too many {binding_type.__name__}[] annotated parameters')
 

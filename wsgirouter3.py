@@ -70,7 +70,7 @@ RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
 _NO_ENDPOINT_DEFAULTS: Dict[str, Any] = {}
 _NO_POSITIONAL_ARGS = ()
 
-_logger = logging.getLogger('wsgirouter')
+_logger = logging.getLogger('wsgirouter3')
 
 
 class cached_property:  # noqa: N801

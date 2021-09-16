@@ -5,7 +5,7 @@ Small opinionated WSGI request dispatcher. Influenced by Flask.
 Works using path segments instead of more common regex matching (RFC 3986 path segment parameters are not supported) https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
 
 Path variables are by default defined using RFC 6570 level 1 https://datatracker.ietf.org/doc/html/rfc6570#section-1.2 Start and optional end markers are customizable.
-Path variable types are defined using python typing information. Customizable, types supported out-of-box: bool, int, str.
+Path variable types are defined using python typing information. Customizable, types supported out-of-box: bool, int, str, uuid.UUID.
 
 WSGI environ wrapper can passed to handler if there is parameter with type Request. No global variables/threadlocals.
 Request body and query string binding is also supported, using generic types Body and Query.
@@ -52,7 +52,7 @@ Query string and request body binding:
 def get(query: Query[dict]) -> dict:
     return query
 
-@router.route('/post', methods=('POST',), consumes='application/json')
+@router.route('/post', methods=['POST'], consumes='application/json')
 def post_with_json(data: Body[dict]) -> Tuple[int]:
     # do something with data
     return 204,

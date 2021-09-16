@@ -12,6 +12,7 @@ import inspect
 import io
 import json
 import logging
+import re
 import typing
 from dataclasses import asdict as dataclass_asdict, dataclass, field, is_dataclass
 from http import HTTPStatus
@@ -19,6 +20,7 @@ from http.cookies import SimpleCookie
 from types import GeneratorType
 from typing import Any, Callable, Dict, Generator, Generic, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
 from urllib.parse import parse_qsl
+from uuid import UUID
 
 __all__ = [
     'ROUTE_OPTIONS_KEY', 'ROUTE_PATH_KEY', 'ROUTE_ROUTING_ARGS_KEY',
@@ -457,10 +459,22 @@ class StringPathParameter(PathParameter):
         kwargs[self.name] = path_segment
 
 
+class UUIDPathParameter(PathParameter):
+
+    matcher = re.compile(r'^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[\dA-Fa-f]{4}-[\dA-Fa-f]{4}-[\dA-Fa-f]{12}$').match
+
+    def match(self, path_segment: str) -> bool:
+        return self.matcher(path_segment) is not None
+
+    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
+        kwargs[self.name] = UUID(path_segment)
+
+
 _DEFAULT_PARAMETER_TYPE_MAP = {
     bool: BoolPathParameter,
     int: IntPathParameter,
     str: StringPathParameter,
+    UUID: UUIDPathParameter,
 }
 
 

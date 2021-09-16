@@ -1,5 +1,6 @@
 """Tests for routing functionality."""
 
+import uuid
 from typing import Optional
 
 import pytest
@@ -113,6 +114,35 @@ def test_int_routes():
         r(environ)
 
 
+def test_uuid_routes():
+    r = PathRouter()
+    methods = ('GET',)
+
+    uid = str(uuid.uuid4())
+
+    def handler(uid: uuid.UUID):
+        pass
+
+    r.add_route('/{uid}', methods, handler)
+    r.add_route('/{uid}/subpath', methods, handler)
+
+    environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/' + uid}
+    assert r(environ).__wrapped__ == handler
+    assert environ.get(r.routing_args_key) == ((), {'uid': uuid.UUID(uid)})
+
+    environ['PATH_INFO'] = '/abc-def-ghi-jkl-mno'
+    with pytest.raises(NotFoundError):
+        r(environ)
+
+    environ['PATH_INFO'] = '/abc'
+    with pytest.raises(NotFoundError):
+        r(environ)
+
+    environ['PATH_INFO'] = '/def/subpath'
+    with pytest.raises(NotFoundError):
+        r(environ)
+
+
 def test_optional_routes():
     r = PathRouter()
     methods = ('GET',)
@@ -125,6 +155,19 @@ def test_optional_routes():
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/123'}
     assert r(environ).__wrapped__ == handler
     assert environ.get(r.routing_args_key) == ((), {'req': 123})
+
+
+def test_methods_passing():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def handler():
+        pass
+
+    r.add_route('/tuple', methods, handler)
+    r.add_route('/list', list(methods), handler)
+    r.add_route('/set', set(methods), handler)
+    r.add_route('/frozenset', frozenset(methods), handler)
 
 
 def test_add_bad_routes():

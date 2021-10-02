@@ -707,6 +707,7 @@ class PathRouter:
                               type_hints: Dict[str, Any],
                               binding_type: Any) -> Optional[Tuple[str, Any]]:
         if binding_type is Request:
+            # XXX type hint should always be Request, even if config.request_factory creates subclass
             bindings = [p for p in parameters if type_hints.get(p.name) is binding_type]
         else:
             bindings = [p for p in parameters if typing.get_origin(type_hints.get(p.name)) is binding_type]

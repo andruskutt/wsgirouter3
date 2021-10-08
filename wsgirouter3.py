@@ -486,6 +486,8 @@ class PathRouter:
     # path parameter markers, by default RFC 6570 level 1
     path_parameter_start: str = '{'
     path_parameter_end: Optional[str] = '}'
+    # handler parameter types to be injected with request wrapper created by config.request_factory
+    supported_request_types: Set[Type[Request]] = {Request}
 
     def __init__(self) -> None:
         self.root = PathEntry()
@@ -707,8 +709,7 @@ class PathRouter:
                               type_hints: Dict[str, Any],
                               binding_type: Any) -> Optional[Tuple[str, Any]]:
         if binding_type is Request:
-            # XXX type hint should always be Request, even if config.request_factory creates subclass
-            bindings = [p for p in parameters if type_hints.get(p.name) is binding_type]
+            bindings = [p for p in parameters if type_hints.get(p.name) in self.supported_request_types]
         else:
             bindings = [p for p in parameters if typing.get_origin(type_hints.get(p.name)) is binding_type]
         if len(bindings) > 1:

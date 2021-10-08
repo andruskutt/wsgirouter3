@@ -79,7 +79,7 @@ WsgiAppConfig class
 | Want to use another json library or configure value types serialized / deserialized | Override json_serializer / json_deserializer |
 | Change maximum length of accepted request body | Set value of max_content_length |
 | Change default content type for str returned | Change value of default_str_content_type |
-| Add authorization | Set before_request hook handler, use route options to define roles. See [sample](examples/authorization/application.py) |
+| Add authorization | Set before_request hook handler, use route options to define roles. See [sample](https://github.com/andruskutt/wsgirouter3/tree/main/examples/authorization/application.py) |
 | Handle more return types | Add entry of tuple[matcher, handler] to result_converters or override custom_result_handler |
 | Validate/convert query string and request body | Use Query and Body generics with value class in handler and override binder |
 | Customize error handling | Override error_handler |
@@ -93,4 +93,4 @@ PathRouter class
 
 ## python 3.7
 
-Monkeypatching of typing module is required. See [tests/conftest.py](tests/conftest.py)
+Monkeypatching of typing module is required. See [tests/conftest.py](https://github.com/andruskutt/wsgirouter3/tree/main/tests/conftest.py)

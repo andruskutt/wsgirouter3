@@ -381,7 +381,7 @@ def test_path_parameter_defaults():
     with pytest.raises(ValueError, match='cannot used as parameters'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'kwargs': 'kwargs is filtered out'})
 
-    with pytest.raises(ValueError, match='are not initialized'):
+    with pytest.raises(ValueError, match='bool_param is not initialized'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string'})
 
     r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string',
@@ -407,7 +407,7 @@ def test_bad_query_binding_parameter():
     def query_generic_without_t(query: Query):
         pass
 
-    with pytest.raises(ValueError, match='parameters query are not initialized'):
+    with pytest.raises(ValueError, match='parameter query is not initialized'):
         r.add_route('/', methods, query_generic_without_t)
 
 
@@ -495,6 +495,9 @@ def test_subrouter():
     router.add_subrouter(prefix1, subrouter)
     router.add_subrouter(prefix2, subrouter)
 
+    with pytest.raises(ValueError, match='missing path segment'):
+        router.add_subrouter('/trailing-separator/', subrouter)
+
     with pytest.raises(ValueError, match='duplicate subrouter'):
         router.add_subrouter(prefix1, handler)
 
@@ -512,6 +515,39 @@ def test_subrouter():
     assert router(environ).__wrapped__ == handler
     environ['PATH_INFO'] = prefix2 + url + '/subpath'
     assert router(environ).__wrapped__ == handler
+
+
+def test_direct_mapping():
+    def handler_with_parameter(value: str):
+        pass
+
+    def handler_without_parameters():
+        pass
+
+    router = PathRouter()
+
+    methods = ('GET',)
+    router.add_route('/{value}', methods, handler_with_parameter)
+    router.add_route('/{value}/subpath', methods, handler_with_parameter)
+
+    assert len(router.direct_mapping) == 0
+
+    router.add_route('/withdefault/subpath', methods, handler_with_parameter, {'value': 'VALUE'})
+
+    assert len(router.direct_mapping) == 1
+
+    subrouter = PathRouter()
+
+    subrouter.add_route('subroutes', methods, handler_without_parameters)
+    subrouter.add_route('/subroutes/subpath', methods, handler_with_parameter, {'value': 'VALUE'})
+
+    assert len(subrouter.direct_mapping) == 2
+
+    router.add_subrouter('subroutes', subrouter)
+
+    assert len(router.direct_mapping) == 3
+
+    assert set(router.direct_mapping) == {'/withdefault/subpath', 'subroutes/subroutes', 'subroutes/subroutes/subpath'}
 
 
 def test_get_routes():

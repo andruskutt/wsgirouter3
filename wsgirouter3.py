@@ -493,24 +493,27 @@ class PathRouter:
         self.root = PathEntry()
         self.parameter_types = _DEFAULT_PARAMETER_TYPE_MAP.copy()
         self.default_options = None
+        self.direct_mapping: Dict[str, PathEntry] = {}
 
     def __call__(self, environ: Dict[str, Any]) -> Callable:
         """Route resolver."""
-        entry = self.root
         path_args: Dict[str, Any] = {}
         route_path = environ.get(_WSGI_PATH_INFO_HEADER)
-        if route_path and route_path != _PATH_SEPARATOR:
-            try:
-                for path_segment in _split_route_path(route_path):
-                    entry = entry[path_segment]
-                    if isinstance(entry, PathParameter):
-                        entry.accept(path_args, path_segment)
-            except KeyError:
-                raise NotFoundError(route_path) from None
+        entry = self.direct_mapping.get(route_path)
+        if entry is None:
+            entry = self.root
+            if route_path and route_path != _PATH_SEPARATOR:
+                try:
+                    for path_segment in _split_route_path(route_path):
+                        entry = entry[path_segment]
+                        if isinstance(entry, PathParameter):
+                            entry.accept(path_args, path_segment)
+                except KeyError:
+                    raise NotFoundError(route_path) from None
 
-        if not entry.methodmap:
-            # intermediate path segment, no endpoints defined
-            raise NotFoundError(route_path)
+            if not entry.methodmap:
+                # intermediate path segment, no endpoints defined
+                raise NotFoundError(route_path)
 
         endpoint = self.negotiate_endpoint(environ, entry)
 
@@ -595,11 +598,18 @@ class PathRouter:
         if defaults is not None:
             missing_parameters = missing_parameters - defaults.keys()
         if missing_parameters:
-            raise ValueError(f'{route_path}: parameters {", ".join(missing_parameters)} are not initialized')
+            missing = ', '.join(missing_parameters)
+            plural = len(missing_parameters) > 1
+            raise ValueError(
+                f'{route_path}: parameter{"s" if plural else ""} {missing} {"are" if plural else "is"} not initialized'
+            )
 
         existing = set(methods) & entry.methodmap.keys()
         if existing:
-            raise ValueError(f'{route_path}: redefinition of handler for method(s) {", ".join(existing)}')
+            plural = len(existing) > 1
+            raise ValueError(
+                f'{route_path}: redefinition of handler for method{"s" if plural else ""} {", ".join(existing)}'
+            )
 
         endpoint = Endpoint(
             handler,
@@ -613,6 +623,8 @@ class PathRouter:
             request_binding
         )
         entry.add_endpoint(methods, endpoint)
+        if not parameter_names:
+            self.direct_mapping[route_path] = entry
 
     def add_subrouter(self, route_path: str, router: 'PathRouter') -> None:
         entry, _ = self.parse_route_path(route_path, None, None)
@@ -623,6 +635,10 @@ class PathRouter:
             raise ValueError(f'{route_path}: duplicate subrouter')
 
         entry.subrouter = router
+        self.direct_mapping.update(
+            (route_path + (p if p.startswith(_PATH_SEPARATOR) else _PATH_SEPARATOR + p), e)
+            for p, e in router.direct_mapping.items()
+        )
 
     def parse_route_path(self,
                          route_path: str,

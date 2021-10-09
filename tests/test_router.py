@@ -524,6 +524,9 @@ def test_direct_mapping():
     def handler_without_parameters():
         pass
 
+    def handler_with_bindings(ctx: Request, args: Query[dict]):
+        pass
+
     router = PathRouter()
 
     methods = ('GET',)
@@ -536,6 +539,10 @@ def test_direct_mapping():
 
     assert len(router.direct_mapping) == 1
 
+    router.add_route('/bindings', methods, handler_with_bindings)
+
+    assert len(router.direct_mapping) == 2
+
     subrouter = PathRouter()
 
     subrouter.add_route('subroutes', methods, handler_without_parameters)
@@ -545,9 +552,11 @@ def test_direct_mapping():
 
     router.add_subrouter('subroutes', subrouter)
 
-    assert len(router.direct_mapping) == 3
+    assert len(router.direct_mapping) == 4
 
-    assert set(router.direct_mapping) == {'/withdefault/subpath', 'subroutes/subroutes', 'subroutes/subroutes/subpath'}
+    assert set(router.direct_mapping) == {
+        '/withdefault/subpath', '/bindings', 'subroutes/subroutes', 'subroutes/subroutes/subpath'
+    }
 
 
 def test_get_routes():

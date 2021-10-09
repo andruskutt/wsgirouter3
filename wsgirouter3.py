@@ -571,6 +571,7 @@ class PathRouter:
         type_hints = typing.get_type_hints(handler)
         signature = inspect.signature(handler)
         entry, parameter_names = self.parse_route_path(route_path, signature, type_hints)
+        contains_path_parameters = bool(parameter_names)
 
         parameters = list(signature.parameters.values())
 
@@ -616,7 +617,7 @@ class PathRouter:
             request_binding
         )
         entry.add_endpoint(methods, endpoint)
-        if not parameter_names:
+        if not contains_path_parameters:
             self.direct_mapping[route_path] = entry
 
     def add_subrouter(self, route_path: str, router: 'PathRouter') -> None:

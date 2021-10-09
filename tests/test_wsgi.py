@@ -526,6 +526,8 @@ def test_wsgi_application():
         e['wsgiorg.routing_args'] = (), {}
         return handler
 
+    router.routing_args_key = 'wsgiorg.routing_args'
+
     def start_response(status, headers):
         pass
 
@@ -560,6 +562,8 @@ def test_wsgi_application():
     def r(e):
         e['wsgiorg.routing_args'] = (), {}
         return failinghandler
+
+    r.routing_args_key = 'wsgiorg.routing_args'
 
     app = WsgiApp(r)
     assert app(env, start_response) == (_http_status_response(HTTPStatus.UNPROCESSABLE_ENTITY).encode(),)

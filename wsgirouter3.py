@@ -23,15 +23,13 @@ from urllib.parse import parse_qsl
 from uuid import UUID
 
 __all__ = [
-    'ROUTE_OPTIONS_KEY', 'ROUTE_PATH_KEY', 'ROUTE_ROUTING_ARGS_KEY',
+    'ROUTE_OPTIONS_KEY',
     'HTTPError', 'MethodNotAllowedError', 'NotFoundError',
     'PathRouter', 'PathParameter', 'RouteDefinition',
     'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body',
 ]
 
 ROUTE_OPTIONS_KEY = 'route.options'
-ROUTE_PATH_KEY = 'route.path'
-ROUTE_ROUTING_ARGS_KEY = 'wsgiorg.routing_args'
 
 _CONTENT_LENGTH_HEADER = 'Content-Length'
 _CONTENT_TYPE_HEADER = 'Content-Type'
@@ -317,7 +315,7 @@ class WsgiApp:
             if before_request is not None:
                 before_request(request)
 
-            result = handler(request, **environ[ROUTE_ROUTING_ARGS_KEY][1])
+            result = handler(request, **environ[self.router.routing_args_key][1])
         except Exception as exc:  # noqa: B902
             result = self.config.error_handler(environ, exc)
 
@@ -341,12 +339,12 @@ class WsgiApp:
 
 class Endpoint:
     __slots__ = (
-        'handler', 'defaults', 'options', 'route_path', 'consumes', 'produces',
+        'handler', 'defaults', 'options', 'consumes', 'produces',
         'query_binding', 'body_binding', 'request_binding'
     )
 
     def __init__(self, handler: Callable,
-                 defaults: Optional[Dict[str, Any]], options: Any, route_path: str,
+                 defaults: Optional[Dict[str, Any]], options: Any,
                  consumes: Optional[str], produces: Optional[str],
                  query_binding: Optional[Tuple[str, Any]],
                  body_binding: Optional[Tuple[str, Any]],
@@ -354,7 +352,6 @@ class Endpoint:
         self.handler = handler
         self.defaults = dict(defaults) if defaults else _NO_ENDPOINT_DEFAULTS
         self.options = options
-        self.route_path = route_path
         self.consumes = consumes
         self.produces = produces
         self.query_binding = query_binding
@@ -481,8 +478,7 @@ _DEFAULT_PARAMETER_TYPE_MAP = {
 class PathRouter:
     # environ keys for routing data
     options_key: str = ROUTE_OPTIONS_KEY
-    path_key: str = ROUTE_PATH_KEY
-    routing_args_key: str = ROUTE_ROUTING_ARGS_KEY
+    routing_args_key: str = 'wsgiorg.routing_args'
     # path parameter markers, by default RFC 6570 level 1
     path_parameter_start: str = '{'
     path_parameter_end: Optional[str] = '}'
@@ -518,8 +514,6 @@ class PathRouter:
         endpoint = self.negotiate_endpoint(environ, entry)
 
         environ[self.options_key] = endpoint.options
-        # XXX this contains only part of actual path in case of subrouter
-        environ[self.path_key] = endpoint.route_path
         environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, {**endpoint.defaults, **path_args})
         return endpoint.handler
 
@@ -615,7 +609,6 @@ class PathRouter:
             handler,
             defaults,
             self.default_options if options is None else options,
-            route_path,
             consumes,
             produces,
             query_binding,

@@ -10,7 +10,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.md'), 'r', encoding='u
 
 setup(
     name='wsgirouter3',
-    version='0.1.0',
+    version='0.2.0',
     description='WSGI routing library',
     long_description=readme,
     long_description_content_type='text/markdown',

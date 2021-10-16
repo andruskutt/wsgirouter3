@@ -65,6 +65,7 @@ _BOOL_VALUES = frozenset(frozenset(('0', 'false', 'no', 'off')) | _BOOL_TRUE_VAL
 _NONE_TYPE = type(None)
 T = TypeVar('T')
 
+WsgiEnviron = Dict[str, Any]
 RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
 
 _NO_ENDPOINT_DEFAULTS: Dict[str, Any] = {}
@@ -124,7 +125,7 @@ class MethodNotAllowedError(HTTPError):
 
 
 class Request:
-    def __init__(self, config: 'WsgiAppConfig', environ: Dict[str, Any]) -> None:
+    def __init__(self, config: 'WsgiAppConfig', environ: WsgiEnviron) -> None:
         self.config = config
         self.environ = environ
 
@@ -214,16 +215,16 @@ class Request:
 @dataclass
 class WsgiAppConfig:
     before_request: Optional[Callable[[Request], None]] = None
-    after_request: Optional[Callable[[int, dict, Dict[str, Any]], None]] = None
+    after_request: Optional[Callable[[int, dict, WsgiEnviron], None]] = None
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_content_length: Optional[int] = None
 
-    def request_factory(self, environ: Dict[str, Any]) -> Request:
+    def request_factory(self, environ: WsgiEnviron) -> Request:
         return Request(self, environ)
 
-    def result_handler(self, environ: Dict[str, Any], result: Any) -> Tuple[int, Iterable, dict]:
+    def result_handler(self, environ: WsgiEnviron, result: Any) -> Tuple[int, Iterable, dict]:
         status = HTTPStatus.OK
         headers = {}
         if isinstance(result, tuple):
@@ -277,7 +278,7 @@ class WsgiAppConfig:
         headers[_CONTENT_LENGTH_HEADER] = str(len(response))
         return response,
 
-    def error_handler(self, environ: Dict[str, Any], exc: Exception) -> Any:
+    def error_handler(self, environ: WsgiEnviron, exc: Exception) -> Any:
         if not isinstance(exc, HTTPError):
             self.logger.exception('Unhandled exception', exc_info=exc)
 
@@ -301,12 +302,12 @@ class WsgiAppConfig:
 
 class WsgiApp:
     def __init__(self,
-                 router: Callable[[Dict[str, Any]], Callable],
+                 router: 'PathRouter',
                  config: Optional[WsgiAppConfig] = None) -> None:
         self.router = router
         self.config = config or WsgiAppConfig()
 
-    def __call__(self, environ: Dict[str, Any], start_response: Callable[[str, List[tuple]], Any]) -> Iterable:
+    def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, List[tuple]], Any]) -> Iterable:
         try:
             handler = self.router(environ)
 
@@ -461,7 +462,7 @@ class UUIDPathParameter(PathParameter):
     matcher = re.compile(r'^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[\dA-Fa-f]{4}-[\dA-Fa-f]{4}-[\dA-Fa-f]{12}$').match
 
     def match(self, path_segment: str) -> bool:
-        return self.matcher(path_segment) is not None
+        return UUIDPathParameter.matcher(path_segment) is not None
 
     def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
         kwargs[self.name] = UUID(path_segment)
@@ -491,7 +492,7 @@ class PathRouter:
         self.default_options = None
         self.direct_mapping: Dict[str, PathEntry] = {}
 
-    def __call__(self, environ: Dict[str, Any]) -> Callable:
+    def __call__(self, environ: WsgiEnviron) -> Callable:
         """Route resolver."""
         path_args: Dict[str, Any] = {}
         route_path = environ.get(_WSGI_PATH_INFO_HEADER)
@@ -517,7 +518,7 @@ class PathRouter:
         environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, {**endpoint.defaults, **path_args})
         return endpoint.handler
 
-    def negotiate_endpoint(self, environ: Dict[str, Any], entry: PathEntry) -> Endpoint:
+    def negotiate_endpoint(self, environ: WsgiEnviron, entry: PathEntry) -> Endpoint:
         method = environ[_WSGI_REQUEST_METHOD_HEADER]
         try:
             endpoint = entry.methodmap[method]
@@ -649,7 +650,7 @@ class PathRouter:
                 raise ValueError(f'{route_path}: missing path segment')
             elif path_segment.startswith(self.path_parameter_start):
                 # path parameter definition
-                if signature is None:
+                if signature is None or type_hints is None:
                     raise ValueError(f'{route_path}: parameters are not allowed')
 
                 factory, parameter_name = self.parse_parameter(path_segment, route_path, signature, type_hints)

@@ -566,14 +566,14 @@ def test_get_routes():
     router = PathRouter()
 
     # no routes defined
-    assert router.get_routes() == ()
+    assert tuple(router.get_routes()) == ()
 
     methods = ('GET',)
 
     url = '/prefix1/{value}'
     router.add_route(url, methods, handler)
 
-    routes = router.get_routes()
+    routes = tuple(router.get_routes())
     assert len(routes) == 1
     path, method, _ = routes[0]
     assert _convert_path(path) == url
@@ -585,7 +585,7 @@ def test_get_routes():
     prefix = '/subrouter'
     router.add_subrouter(prefix, subrouter)
 
-    routes = router.get_routes()
+    routes = tuple(router.get_routes())
     assert len(routes) == 2
     path, method, _ = routes[1]
     assert _convert_path(path) == prefix + url

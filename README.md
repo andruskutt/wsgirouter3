@@ -91,6 +91,12 @@ PathRouter class
 | Change parameter markers | Change value of path_parameter_start and path_parameter_end |
 | Add new path parameter type | Add new class inherited from PathParameter into parameter_types |
 
+## Installation
+
+```shell
+$ pip install wsgirouter3
+```
+
 ## python 3.7
 
 Monkeypatching of typing module is required. See [tests/conftest.py](https://github.com/andruskutt/wsgirouter3/tree/main/tests/conftest.py)

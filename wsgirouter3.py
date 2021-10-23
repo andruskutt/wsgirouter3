@@ -7,7 +7,6 @@ License: MIT
 """
 
 import cgi
-import functools
 import inspect
 import io
 import json
@@ -63,6 +62,7 @@ _BOOL_TRUE_VALUES = frozenset(('1', 'true', 'yes', 'on'))
 _BOOL_VALUES = frozenset(frozenset(('0', 'false', 'no', 'off')) | _BOOL_TRUE_VALUES)
 
 _NONE_TYPE = type(None)
+F = TypeVar('F', bound=Callable[..., Any])
 T = TypeVar('T')
 
 WsgiEnviron = Dict[str, Any]
@@ -272,7 +272,7 @@ class WsgiAppConfig:
 
         return self.json_result_handler(dataclass_asdict(result), headers)
 
-    def json_result_handler(self, result: Any, headers: dict) -> Iterable:
+    def json_result_handler(self, result: Any, headers: dict) -> Iterable[bytes]:
         response = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
         headers[_CONTENT_LENGTH_HEADER] = str(len(response))
@@ -293,7 +293,7 @@ class WsgiAppConfig:
         # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
         return json.dumps(obj).encode()
 
-    def binder(self, data: Any, result_type: Any) -> Any:
+    def binder(self, data: Any, result_type: Type[T]) -> T:
         if not isinstance(data, result_type):
             raise HTTPError(HTTPStatus.BAD_REQUEST)
 
@@ -301,22 +301,28 @@ class WsgiAppConfig:
 
 
 class WsgiApp:
-    def __init__(self,
-                 router: 'PathRouter',
-                 config: Optional[WsgiAppConfig] = None) -> None:
+    # environ keys for routing data
+    options_key: str = ROUTE_OPTIONS_KEY
+    routing_args_key: str = 'wsgiorg.routing_args'
+
+    def __init__(self, router: 'PathRouter', config: Optional[WsgiAppConfig] = None) -> None:
         self.router = router
         self.config = config or WsgiAppConfig()
 
     def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, List[tuple]], Any]) -> Iterable:
         try:
-            handler = self.router(environ)
+            endpoint, path_parameters = self.router(environ)
 
             request = self.config.request_factory(environ)
             before_request = self.config.before_request
             if before_request is not None:
                 before_request(request)
 
-            result = handler(request, **environ[self.router.routing_args_key][1])
+            kwargs = self.bind_parameters(endpoint, path_parameters, request)
+            environ[self.options_key] = endpoint.options
+            environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, kwargs)
+
+            result = endpoint.handler(**kwargs)
         except Exception as exc:  # noqa: B902
             result = self.config.error_handler(environ, exc)
 
@@ -337,6 +343,30 @@ class WsgiApp:
         start_response(_STATUS_ROW_FROM_CODE[status], [*response_headers.items()])
         return result
 
+    def bind_parameters(self, endpoint: 'Endpoint', path_parameters: Dict[str, Any], req: Request) -> Dict[str, Any]:
+        kwargs = {**endpoint.defaults, **path_parameters}
+        query_binding = endpoint.query_binding
+        if query_binding is not None:
+            data = req.query_parameters
+            kwargs[query_binding[0]] = self.config.binder(data, query_binding[1])
+
+        body_binding = endpoint.body_binding
+        if body_binding is not None:
+            if req.content_type == _CONTENT_TYPE_APPLICATION_JSON:
+                data = req.json
+            elif req.content_type in _FORM_CONTENT_TYPES:
+                data = req.form
+            else:
+                raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+
+            kwargs[body_binding[0]] = self.config.binder(data, body_binding[1])
+
+        request_binding = endpoint.request_binding
+        if request_binding is not None:
+            kwargs[request_binding[0]] = req
+
+        return kwargs
+
 
 class Endpoint:
     __slots__ = (
@@ -344,7 +374,7 @@ class Endpoint:
         'query_binding', 'body_binding', 'request_binding'
     )
 
-    def __init__(self, handler: Callable,
+    def __init__(self, handler: Callable[..., Any],
                  defaults: Optional[Dict[str, Any]], options: Any,
                  consumes: Optional[str], produces: Optional[str],
                  query_binding: Optional[Tuple[str, Any]],
@@ -358,29 +388,6 @@ class Endpoint:
         self.query_binding = query_binding
         self.body_binding = body_binding
         self.request_binding = request_binding
-
-        @functools.wraps(handler)
-        def binding_handler(__req: Request, *args, **kwargs) -> Any:
-            if query_binding is not None:
-                data = __req.query_parameters
-                kwargs[query_binding[0]] = __req.config.binder(data, query_binding[1])
-
-            if body_binding is not None:
-                if __req.content_type == _CONTENT_TYPE_APPLICATION_JSON:
-                    data = __req.json
-                elif __req.content_type in _FORM_CONTENT_TYPES:
-                    data = __req.form
-                else:
-                    raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
-
-                kwargs[body_binding[0]] = __req.config.binder(data, body_binding[1])
-
-            if request_binding is not None:
-                kwargs[request_binding[0]] = __req
-
-            return handler(*args, **kwargs)
-
-        self.handler = binding_handler
 
 
 class PathEntry:
@@ -477,9 +484,6 @@ _DEFAULT_PARAMETER_TYPE_MAP = {
 
 
 class PathRouter:
-    # environ keys for routing data
-    options_key: str = ROUTE_OPTIONS_KEY
-    routing_args_key: str = 'wsgiorg.routing_args'
     # path parameter markers, by default RFC 6570 level 1
     path_parameter_start: str = '{'
     path_parameter_end: Optional[str] = '}'
@@ -492,9 +496,9 @@ class PathRouter:
         self.default_options = None
         self.direct_mapping: Dict[str, PathEntry] = {}
 
-    def __call__(self, environ: WsgiEnviron) -> Callable:
+    def __call__(self, environ: WsgiEnviron) -> Tuple[Endpoint, Dict[str, Any]]:
         """Route resolver."""
-        path_args: Dict[str, Any] = {}
+        path_parameters: Dict[str, Any] = {}
         route_path = environ.get(_WSGI_PATH_INFO_HEADER)
         entry = self.direct_mapping.get(route_path)
         if entry is None:
@@ -504,7 +508,7 @@ class PathRouter:
                     for path_segment in _split_route_path(route_path):
                         entry = entry[path_segment]
                         if isinstance(entry, PathParameter):
-                            entry.accept(path_args, path_segment)
+                            entry.accept(path_parameters, path_segment)
                 except KeyError:
                     raise NotFoundError(route_path) from None
 
@@ -513,10 +517,7 @@ class PathRouter:
                 raise NotFoundError(route_path)
 
         endpoint = self.negotiate_endpoint(environ, entry)
-
-        environ[self.options_key] = endpoint.options
-        environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, {**endpoint.defaults, **path_args})
-        return endpoint.handler
+        return endpoint, path_parameters
 
     def negotiate_endpoint(self, environ: WsgiEnviron, entry: PathEntry) -> Endpoint:
         method = environ[_WSGI_REQUEST_METHOD_HEADER]
@@ -551,8 +552,8 @@ class PathRouter:
               defaults: Optional[Dict[str, Any]] = None,
               options: Any = None,
               consumes: Optional[str] = None,
-              produces: Optional[str] = None) -> Callable:
-        def wrapper(handler):
+              produces: Optional[str] = None) -> Callable[[F], F]:
+        def wrapper(handler: F) -> F:
             self.add_route(route_path, methods, handler, defaults, options, consumes, produces)
             return handler
 
@@ -561,7 +562,7 @@ class PathRouter:
     def add_route(self,
                   route_path: str,
                   methods: Iterable[str],
-                  handler: Callable,
+                  handler: Callable[..., Any],
                   defaults: Optional[Dict[str, Any]] = None,
                   options: Any = None,
                   consumes: Optional[str] = None,

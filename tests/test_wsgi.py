@@ -523,10 +523,7 @@ def test_wsgi_application():
         return {}
 
     def router(e):
-        e['wsgiorg.routing_args'] = (), {}
-        return handler
-
-    router.routing_args_key = 'wsgiorg.routing_args'
+        return handler, {}
 
     def start_response(status, headers):
         pass
@@ -554,27 +551,22 @@ def test_wsgi_application():
     env = {'REQUEST_METHOD': 'POST', 'PATH_INFO': url}
     assert app(env, start_response) == (_http_status_response(HTTPStatus.METHOD_NOT_ALLOWED).encode(),)
 
-    def failinghandler(req):
+    def failinghandler():
         status = HTTPStatus.UNPROCESSABLE_ENTITY
         assert not status.description
         raise HTTPError(status)
 
-    def r(e):
-        e['wsgiorg.routing_args'] = (), {}
-        return failinghandler
-
-    r.routing_args_key = 'wsgiorg.routing_args'
-
+    r = PathRouter()
+    r.add_route(url, ('POST',), failinghandler)
     app = WsgiApp(r)
     assert app(env, start_response) == (_http_status_response(HTTPStatus.UNPROCESSABLE_ENTITY).encode(),)
 
-    def handlerwithruntimeerror(req):
+    def handlerwithruntimeerror():
         raise ValueError('Unexpected')
 
-    def r2(e):
-        return handlerwithruntimeerror, {}
-
-    app = WsgiApp(r2)
+    r = PathRouter()
+    r.add_route(url, ('POST',), handlerwithruntimeerror)
+    app = WsgiApp(r)
     assert app(env, start_response) == (_http_status_response(HTTPStatus.INTERNAL_SERVER_ERROR).encode(),)
 
 

@@ -19,16 +19,19 @@ def test_str_routes():
     r.add_route('/{req}/subpath', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/abc'}
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': 'abc'})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': 'abc'}
 
     environ['PATH_INFO'] = '/def/subpath'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': 'def'})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': 'def'}
 
     environ['PATH_INFO'] = '/ghi'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': 'ghi'})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': 'ghi'}
 
     environ['PATH_INFO'] = '/jkl/mismatch'
     with pytest.raises(NotFoundError) as exc_info:
@@ -47,16 +50,19 @@ def test_bool_routes():
     r.add_route('/{req}/subpath', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/true'}
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': True})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': True}
 
     environ['PATH_INFO'] = '/false/subpath'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': False})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': False}
 
     environ['PATH_INFO'] = '/on'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': True})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': True}
 
     environ['PATH_INFO'] = '/abc'
     with pytest.raises(NotFoundError):
@@ -82,24 +88,29 @@ def test_int_routes():
     r.add_route('/{req}/subpath', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/123'}
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': 123})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': 123}
 
     environ['PATH_INFO'] = '/456/subpath'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': 456})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': 456}
 
     environ['PATH_INFO'] = '/-456/subpath'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': -456})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': -456}
 
     environ['PATH_INFO'] = '/789'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': 789})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': 789}
 
     environ['PATH_INFO'] = '/-789'
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': -789})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': -789}
 
     environ['PATH_INFO'] = '/abc'
     with pytest.raises(NotFoundError):
@@ -127,8 +138,9 @@ def test_uuid_routes():
     r.add_route('/{uid}/subpath', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/' + uid}
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'uid': uuid.UUID(uid)})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'uid': uuid.UUID(uid)}
 
     environ['PATH_INFO'] = '/abc-def-ghi-jkl-mno'
     with pytest.raises(NotFoundError):
@@ -153,8 +165,9 @@ def test_optional_routes():
     r.add_route('/{req}', methods, handler)
 
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': '/123'}
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {'req': 123})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'req': 123}
 
 
 def test_methods_passing():
@@ -225,11 +238,15 @@ def test_trailing_slash():
         pass
 
     r.add_route(url, methods, handler)
-    assert r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url}).__wrapped__ == handler
+    endpoint, path_parameters = r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url})
+    assert endpoint.handler == handler
+    assert path_parameters == {}
 
     url = '/trailing'
     r.add_route(url, methods, handler)
-    assert r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url}).__wrapped__ == handler
+    endpoint, path_parameters = r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url})
+    assert endpoint.handler == handler
+    assert path_parameters == {}
 
     with pytest.raises(NotFoundError, match='/trailing/'):
         r({'REQUEST_METHOD': methods[0], 'PATH_INFO': url + '/'})
@@ -254,8 +271,9 @@ def test_method_matching():
         r(environ)
 
     environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
-    assert r(environ).__wrapped__ == handler
-    assert environ.get(r.routing_args_key) == ((), {})
+    endpoint, path_parameters = r(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {}
 
 
 def test_bad_path_parameters():
@@ -465,10 +483,11 @@ def test_overlapping_path_segments():
     for route, _, _, defaults in paths:
         r.add_route(route, methods, handler, defaults=defaults)
 
-    for route, url, args, defaults in paths:
+    for route, url, args, _ in paths:
         environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': (url or route)}
-        assert r(environ).__wrapped__ == handler
-        assert environ[r.routing_args_key] == ((), {**args, **(defaults or {})})
+        endpoint, path_parameters = r(environ)
+        assert endpoint.handler == handler
+        assert path_parameters == args
 
 
 def test_subrouter():
@@ -507,14 +526,24 @@ def test_subrouter():
         router(environ)
 
     environ['PATH_INFO'] = prefix1 + url
-    assert router(environ).__wrapped__ == handler
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'value': 'abc'}
+
     environ['PATH_INFO'] = prefix1 + url + '/subpath'
-    assert router(environ).__wrapped__ == handler
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'value': 'abc'}
 
     environ['PATH_INFO'] = prefix2 + url
-    assert router(environ).__wrapped__ == handler
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'value': 'abc'}
+
     environ['PATH_INFO'] = prefix2 + url + '/subpath'
-    assert router(environ).__wrapped__ == handler
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'value': 'abc'}
 
 
 def test_direct_mapping():

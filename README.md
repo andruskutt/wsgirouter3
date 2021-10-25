@@ -96,7 +96,3 @@ PathRouter class
 ```shell
 $ pip install wsgirouter3
 ```
-
-## python 3.7
-
-Monkeypatching of typing module is required. See [tests/conftest.py](https://github.com/andruskutt/wsgirouter3/tree/main/tests/conftest.py)

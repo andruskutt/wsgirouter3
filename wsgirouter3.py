@@ -12,12 +12,16 @@ import io
 import json
 import logging
 import re
-import typing
 from dataclasses import asdict as dataclass_asdict, dataclass, field, is_dataclass
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
+try:
+    from typing import get_args, get_origin, get_type_hints, Annotated
+except ImportError:  # pragma: no cover
+    # python 3.8 or earlier
+    from typing_extensions import get_args, get_origin, get_type_hints, Annotated
 from urllib.parse import parse_qsl
 from uuid import UUID
 
@@ -419,12 +423,16 @@ class PathEntry:
         self.methodmap.update(dict.fromkeys(methods, endpoint))
 
 
-class Query(Generic[T]):
-    pass
+class QueryBinding:
+    """Marker for query string binding."""
 
 
-class Body(Generic[T]):
-    pass
+class BodyBinding:
+    """Marker for body binding."""
+
+
+Query = Annotated[T, QueryBinding]
+Body = Annotated[T, BodyBinding]
 
 
 class PathParameter(PathEntry):
@@ -570,15 +578,15 @@ class PathRouter:
         if not methods:
             raise ValueError(f'{route_path}: no methods defined')
 
-        type_hints = typing.get_type_hints(handler)
+        type_hints = get_type_hints(handler, include_extras=True)
         signature = inspect.signature(handler)
         entry, parameter_names = self.parse_route_path(route_path, signature, type_hints)
         contains_path_parameters = bool(parameter_names)
 
         parameters = list(signature.parameters.values())
 
-        query_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Query)
-        body_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Body)
+        query_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, QueryBinding)
+        body_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, BodyBinding)
         request_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Request)
 
         if defaults is not None:
@@ -701,9 +709,9 @@ class PathRouter:
             raise ValueError(f'{route_path}: path parameter {parameter_name} missing type annotation')
 
         # unwrap possible Optional[x]/Union[x, None]
-        origin = typing.get_origin(annotation)
+        origin = get_origin(annotation)
         if origin is Union:
-            union_args = [a for a in typing.get_args(annotation) if a is not _NONE_TYPE]
+            union_args = [a for a in get_args(annotation) if a is not _NONE_TYPE]
             if len(union_args) == 1:
                 annotation = union_args[0]
 
@@ -720,10 +728,11 @@ class PathRouter:
                               parameters: List[inspect.Parameter],
                               type_hints: Dict[str, Any],
                               binding_type: Any) -> Optional[Tuple[str, Any]]:
-        if binding_type is Request:
+        is_request_binding = binding_type is Request
+        if is_request_binding:
             bindings = [p for p in parameters if type_hints.get(p.name) in self.supported_request_types]
         else:
-            bindings = [p for p in parameters if typing.get_origin(type_hints.get(p.name)) is binding_type]
+            bindings = [p for p in parameters if _is_annotated_with(type_hints.get(p.name), binding_type)]
         if len(bindings) > 1:
             raise ValueError(f'{route_path}: too many {binding_type.__name__}[] annotated parameters')
 
@@ -737,8 +746,8 @@ class PathRouter:
         binding_name = bp.name
         parameter_names.add(binding_name)
 
-        args = typing.get_args(bp.annotation)
-        return (binding_name, args[0] if len(args) == 1 else binding_type)
+        args = get_args(bp.annotation)
+        return (binding_name, binding_type if is_request_binding else args[0])
 
     def get_routes(self) -> Iterable[RouteDefinition]:
         def walk_children(path: List[Union[str, PathParameter]],
@@ -778,3 +787,11 @@ def _parse_header(header: Optional[str]) -> Optional[str]:
 def _split_route_path(route_path: str) -> List[str]:
     path_segments = route_path.split(_PATH_SEPARATOR)
     return path_segments[1:] if route_path.startswith(_PATH_SEPARATOR) else path_segments
+
+
+def _is_annotated_with(hints: Any, annotation: Any) -> bool:
+    if get_origin(hints) is not Annotated:
+        return False
+
+    args = get_args(hints)
+    return len(args) >= 2 and not isinstance(args[0], TypeVar) and annotation in args[1:]

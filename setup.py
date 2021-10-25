@@ -8,6 +8,9 @@ from setuptools import setup
 with open(os.path.join(os.path.dirname(__file__), 'README.md'), 'r', encoding='utf-8') as f:
     readme = f.read()
 
+with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), 'r', encoding='utf-8') as f:
+    install_requires = f.read().splitlines()
+
 setup(
     name='wsgirouter3',
     version='0.2.0',
@@ -33,4 +36,5 @@ setup(
     license='MIT',
     py_modules=['wsgirouter3'],
     python_requires='>=3.7',
+    install_requires=install_requires
 )

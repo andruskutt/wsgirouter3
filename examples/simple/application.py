@@ -7,6 +7,8 @@ from wsgiref.simple_server import make_server
 from wsgirouter3 import PathRouter, Query, Request, WsgiApp
 
 
+_NO_CONTENT = HTTPStatus.NO_CONTENT,
+
 router = PathRouter()
 
 
@@ -22,14 +24,14 @@ def get(query: Query[dict]) -> dict:
 @router.route('/post/{some_id}', methods=('POST',))
 def post_with_id(some_id: int) -> tuple:
     # status-only result as single element tuple
-    return HTTPStatus.NO_CONTENT,
+    return _NO_CONTENT
 
 
 # multiple routes for same endpoint
 @router.route('/put', methods=('PUT',), defaults={'some_id': None})
 @router.route('/put/{some_id}', methods=('PUT',))
 def put_with_id(some_id: Optional[int]) -> tuple:
-    return HTTPStatus.NO_CONTENT,
+    return _NO_CONTENT
 
 
 # handler gets wsgi environ wrapper as parameter if there is parameter with type Request

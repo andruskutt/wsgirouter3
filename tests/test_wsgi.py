@@ -424,6 +424,7 @@ def test_custom_response():
 def test_request_content_negotiation():
     text_url = '/url/text'
     json_url = '/url/json'
+    all_url = '/url/all'
     json_bytes = b'{"A": 1, "D": 0.1}'
     content = {
         'CONTENT_TYPE': 'application/json',
@@ -441,6 +442,10 @@ def test_request_content_negotiation():
     def json_endpoint():
         return (204,)
 
+    @router.route(all_url, ('GET',), consumes=('application/json', 'text/plain'))
+    def all_endpoint():
+        return (204,)
+
     app = WsgiApp(router)
     returned_status = None
 
@@ -450,7 +455,20 @@ def test_request_content_negotiation():
 
     app({'REQUEST_METHOD': 'GET', 'PATH_INFO': text_url, **content}, start_response)
     assert returned_status == '415 Unsupported Media Type'
+    returned_status = None
+    app({'REQUEST_METHOD': 'GET', 'PATH_INFO': text_url, **content, 'CONTENT_TYPE': 'text/plain'}, start_response)
+    assert returned_status == '204 No Content'
+    returned_status = None
     app({'REQUEST_METHOD': 'GET', 'PATH_INFO': json_url, **content}, start_response)
+    assert returned_status == '204 No Content'
+    returned_status = None
+    app({'REQUEST_METHOD': 'GET', 'PATH_INFO': json_url, **content, 'CONTENT_TYPE': 'text/plain'}, start_response)
+    assert returned_status == '415 Unsupported Media Type'
+    returned_status = None
+    app({'REQUEST_METHOD': 'GET', 'PATH_INFO': all_url, **content}, start_response)
+    assert returned_status == '204 No Content'
+    returned_status = None
+    app({'REQUEST_METHOD': 'GET', 'PATH_INFO': all_url, **content, 'CONTENT_TYPE': 'text/plain'}, start_response)
     assert returned_status == '204 No Content'
 
 

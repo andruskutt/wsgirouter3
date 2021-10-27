@@ -16,7 +16,7 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
 try:
     from typing import get_args, get_origin, get_type_hints, Annotated
 except ImportError:  # pragma: no cover
@@ -380,7 +380,7 @@ class Endpoint:
 
     def __init__(self, handler: Callable[..., Any],
                  defaults: Optional[Dict[str, Any]], options: Any,
-                 consumes: Optional[str], produces: Optional[str],
+                 consumes: Optional[FrozenSet[str]], produces: Optional[str],
                  query_binding: Optional[Tuple[str, Any]],
                  body_binding: Optional[Tuple[str, Any]],
                  request_binding: Optional[Tuple[str, Any]]) -> None:
@@ -537,7 +537,7 @@ class PathRouter:
         required_content_type = endpoint.consumes
         if required_content_type:
             actual_content_type = _parse_header(environ.get(_WSGI_CONTENT_TYPE_HEADER))
-            if actual_content_type != required_content_type:
+            if actual_content_type not in required_content_type:
                 raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
         response_content_type = endpoint.produces
@@ -559,7 +559,7 @@ class PathRouter:
               methods: Iterable[str],
               defaults: Optional[Dict[str, Any]] = None,
               options: Any = None,
-              consumes: Optional[str] = None,
+              consumes: Union[str, Iterable[str], None] = None,
               produces: Optional[str] = None) -> Callable[[F], F]:
         def wrapper(handler: F) -> F:
             self.add_route(route_path, methods, handler, defaults, options, consumes, produces)
@@ -573,7 +573,7 @@ class PathRouter:
                   handler: Callable[..., Any],
                   defaults: Optional[Dict[str, Any]] = None,
                   options: Any = None,
-                  consumes: Optional[str] = None,
+                  consumes: Union[str, Iterable[str], None] = None,
                   produces: Optional[str] = None) -> None:
         if not methods:
             raise ValueError(f'{route_path}: no methods defined')
@@ -616,6 +616,8 @@ class PathRouter:
                 f'{route_path}: redefinition of handler for method{"s" if plural else ""} {", ".join(existing)}'
             )
 
+        if consumes is not None:
+            consumes = frozenset((consumes,) if isinstance(consumes, str) else consumes)
         endpoint = Endpoint(
             handler,
             defaults,

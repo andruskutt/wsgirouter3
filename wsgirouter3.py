@@ -358,10 +358,8 @@ class WsgiApp:
         if body_binding is not None:
             if req.content_type == _CONTENT_TYPE_APPLICATION_JSON:
                 data = req.json
-            elif req.content_type in _FORM_CONTENT_TYPES:
-                data = req.form
             else:
-                raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+                data = req.form
 
             kwargs[body_binding[0]] = self.config.binder(data, body_binding[1])
 

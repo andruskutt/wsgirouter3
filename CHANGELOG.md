@@ -1,3 +1,15 @@
+## 0.3.0 (2021-10-31)
+
+### Features
+
+* multiple mime types supported in consumes parameter when defining route
+
+### Refactoring
+
+* Query and Body binding markers are now Annotated aliases. For python < 3.9 this requires external dependency typing_extensions.
+* removed knowledge about request handling details inside PathRouter
+* PathRouter returns routes using generator
+
 ## 0.2.0 (2021-10-09)
 
 ### Features

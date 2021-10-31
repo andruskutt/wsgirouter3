@@ -16,7 +16,7 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
 try:
     from typing import get_args, get_origin, get_type_hints, Annotated
 except ImportError:  # pragma: no cover
@@ -44,6 +44,7 @@ _WSGI_ACCEPT_HEADER = 'HTTP_ACCEPT'
 _WSGI_CONTENT_LENGTH_HEADER = 'CONTENT_LENGTH'
 _WSGI_CONTENT_TYPE_HEADER = 'CONTENT_TYPE'
 _WSGI_PATH_INFO_HEADER = 'PATH_INFO'
+_WSGI_QUERY_STRING_HEADER = 'QUERY_STRING'
 _WSGI_REQUEST_METHOD_HEADER = 'REQUEST_METHOD'
 
 _FORM_CONTENT_TYPES = {_CONTENT_TYPE_MULTIPART_FORM_DATA, _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED}
@@ -72,7 +73,6 @@ T = TypeVar('T')
 WsgiEnviron = Dict[str, Any]
 RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
 
-_NO_ENDPOINT_DEFAULTS: Dict[str, Any] = {}
 _NO_POSITIONAL_ARGS = ()
 
 _logger = logging.getLogger('wsgirouter3')
@@ -197,7 +197,7 @@ class Request:
 
     @cached_property
     def query_parameters(self) -> Dict[str, str]:
-        qs = self.environ.get('QUERY_STRING')
+        qs = self.environ.get(_WSGI_QUERY_STRING_HEADER)
         if not qs:
             return {}
 
@@ -348,7 +348,7 @@ class WsgiApp:
         return result
 
     def bind_parameters(self, endpoint: 'Endpoint', path_parameters: Dict[str, Any], req: Request) -> Dict[str, Any]:
-        kwargs = {**endpoint.defaults, **path_parameters}
+        kwargs = path_parameters if endpoint.defaults is None else {**endpoint.defaults, **path_parameters}
         query_binding = endpoint.query_binding
         if query_binding is not None:
             data = req.query_parameters
@@ -378,14 +378,17 @@ class Endpoint:
 
     def __init__(self, handler: Callable[..., Any],
                  defaults: Optional[Dict[str, Any]], options: Any,
-                 consumes: Optional[FrozenSet[str]], produces: Optional[str],
+                 consumes: Union[str, Iterable[str], None], produces: Optional[str],
                  query_binding: Optional[Tuple[str, Any]],
                  body_binding: Optional[Tuple[str, Any]],
                  request_binding: Optional[Tuple[str, Any]]) -> None:
         self.handler = handler
-        self.defaults = dict(defaults) if defaults else _NO_ENDPOINT_DEFAULTS
+        self.defaults = dict(defaults) if defaults else None
         self.options = options
-        self.consumes = consumes
+        if consumes:
+            self.consumes = frozenset((consumes,) if isinstance(consumes, str) else consumes)
+        else:
+            self.consumes = None
         self.produces = produces
         self.query_binding = query_binding
         self.body_binding = body_binding
@@ -614,8 +617,6 @@ class PathRouter:
                 f'{route_path}: redefinition of handler for method{"s" if plural else ""} {", ".join(existing)}'
             )
 
-        if consumes is not None:
-            consumes = frozenset((consumes,) if isinstance(consumes, str) else consumes)
         endpoint = Endpoint(
             handler,
             defaults,

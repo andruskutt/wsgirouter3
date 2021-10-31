@@ -5,7 +5,7 @@ from typing import Optional
 
 import pytest
 
-from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathRouter, Query, Request
+from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathParameter, PathRouter, Query, Request
 
 
 def test_str_routes():
@@ -152,6 +152,26 @@ def test_uuid_routes():
 
     environ['PATH_INFO'] = '/def/subpath'
     with pytest.raises(NotFoundError):
+        r(environ)
+
+
+def test_bad_path_parameter_implementation():
+    r = PathRouter()
+
+    class BadPathParameterImplementation(PathParameter):
+        # no match override
+        pass
+
+    r.parameter_types[float] = BadPathParameterImplementation
+
+    url = '/{value}'
+
+    @r.route(url, methods=('GET',))
+    def handler(value: float):
+        raise AssertionError('Cannot happen')
+
+    environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url.format(value=3.0)}
+    with pytest.raises(AttributeError):
         r(environ)
 
 

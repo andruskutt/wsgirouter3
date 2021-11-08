@@ -668,9 +668,6 @@ class PathRouter:
                     if not (isinstance(entry.parameter, factory) and entry.parameter.name == parameter_name):
                         raise ValueError(f'{route_path}: incompatible path parameter {parameter_name}')
                 else:
-                    if parameter_name == '__req':
-                        raise ValueError(f'{route_path}: reserved path parameter name {parameter_name}')
-
                     if parameter_name in parameter_names:
                         raise ValueError(f'{route_path}: duplicate path parameter {parameter_name}')
 

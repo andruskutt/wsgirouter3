@@ -354,18 +354,6 @@ def test_bad_path_parameters():
         r.add_route('/{kwargs}', methods, kwhandler)
 
 
-def test_bad_path_parameters_internal_name():
-    r = PathRouter()
-    methods = ('GET',)
-
-    # __req is internally used to pass optionally binded wsgi wrapper
-    def handler_with_internal_parameter_name(__req: str):
-        pass
-
-    with pytest.raises(ValueError, match='reserved path parameter name __req'):
-        r.add_route('/{__req}', methods, handler_with_internal_parameter_name)
-
-
 def test_path_parameter_typings():
     r = PathRouter()
     methods = ('GET',)

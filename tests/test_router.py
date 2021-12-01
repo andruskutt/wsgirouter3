@@ -527,6 +527,8 @@ def test_subrouter():
 
     methods = ('GET',)
 
+    subrouter.add_route('/literal', methods, handler, defaults={'value': 'def'})
+    subrouter.add_route('/subprefix/{value}', methods, handler)
     subrouter.add_route('/{value}', methods, handler)
     subrouter.add_route('/{value}/subpath', methods, handler)
 
@@ -547,12 +549,32 @@ def test_subrouter():
     with pytest.raises(NotFoundError):
         router(environ)
 
+    environ['PATH_INFO'] = prefix1 + '/literal'
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {}
+
+    environ['PATH_INFO'] = prefix1 + '/subprefix' + url
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'value': 'abc'}
+
     environ['PATH_INFO'] = prefix1 + url
     endpoint, path_parameters = router(environ)
     assert endpoint.handler == handler
     assert path_parameters == {'value': 'abc'}
 
     environ['PATH_INFO'] = prefix1 + url + '/subpath'
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {'value': 'abc'}
+
+    environ['PATH_INFO'] = prefix2 + '/literal'
+    endpoint, path_parameters = router(environ)
+    assert endpoint.handler == handler
+    assert path_parameters == {}
+
+    environ['PATH_INFO'] = prefix2 + '/subprefix' + url
     endpoint, path_parameters = router(environ)
     assert endpoint.handler == handler
     assert path_parameters == {'value': 'abc'}

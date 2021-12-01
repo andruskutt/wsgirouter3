@@ -719,7 +719,7 @@ def test_body_binding_bad_datatype():
 
     @router.route(url, ('POST',))
     def endpoint(body: Body[list]) -> dict:
-        return body
+        return {'body': body}
 
     app = WsgiApp(router)
 

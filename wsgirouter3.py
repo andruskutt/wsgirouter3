@@ -7,6 +7,7 @@ License: MIT
 """
 
 import cgi
+import functools
 import inspect
 import io
 import json
@@ -567,6 +568,12 @@ class PathRouter:
             return handler
 
         return wrapper
+
+    delete = functools.partialmethod(route, methods=('DELETE',))
+    get = functools.partialmethod(route, methods=('GET',))
+    patch = functools.partialmethod(route, methods=('PATCH',))
+    post = functools.partialmethod(route, methods=('POST',))
+    put = functools.partialmethod(route, methods=('PUT',))
 
     def add_route(self,
                   route_path: str,

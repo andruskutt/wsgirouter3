@@ -12,13 +12,15 @@ Request body and query string binding is also supported, using generic types Bod
 
 Supports overlapping path segments: zero or more literal segments can overlap with one parameter definition. Parameters of different type and/or name in same position are not supported. Literal segment takes precedence.
 
+Route decorators for HTTP methods DELETE, GET, PATCH, POST, PUT.
+
 
 ```python
 @router.route('/abc/literal', methods=('GET',))
 def literal():
     pass
 
-@router.route('/abc/{variable}', methods=('GET',))
+@router.get('/abc/{variable}')
 def parameterized(variable: str):
     pass
 ```
@@ -26,7 +28,7 @@ def parameterized(variable: str):
 Multiple routes can point to same handler:
 
 ```python
-@router.route('/abc', methods=('GET',), defaults={'variable': None})
+@router.get('/abc', defaults={'variable': None})
 @router.route('/abc/{variable}', methods=('GET',))
 def with_optional_parameter(variable: Optional[str]):
     pass
@@ -39,7 +41,7 @@ Content negotiation:
 def get() -> dict:
     return {'field': 'value'}
 
-@router.route('/post', methods=('POST',), consumes='application/json')
+@router.post('/post', consumes='application/json')
 def post_with_json(req: Request) -> Tuple[int]:
     data = req.json
     return 204,

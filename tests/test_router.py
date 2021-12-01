@@ -203,6 +203,20 @@ def test_methods_passing():
     r.add_route('/frozenset', frozenset(methods), handler)
 
 
+def test_method_shortcuts():
+    r = PathRouter()
+
+    def handler():
+        pass
+
+    url = '/path'
+    r.delete(url)(handler)
+    r.get(url)(handler)
+    r.patch(url)(handler)
+    r.post(url)(handler)
+    r.put(url)(handler)
+
+
 def test_add_bad_routes():
     r = PathRouter()
     url = '/{req}'

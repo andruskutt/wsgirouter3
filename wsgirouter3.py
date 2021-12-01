@@ -17,7 +17,7 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
 try:
     from typing import get_args, get_origin, get_type_hints, Annotated
 except ImportError:  # pragma: no cover
@@ -387,7 +387,7 @@ class Endpoint:
         self.defaults = dict(defaults) if defaults else None
         self.options = options
         if consumes:
-            self.consumes = frozenset((consumes,) if isinstance(consumes, str) else consumes)
+            self.consumes: Optional[FrozenSet[str]] = frozenset((consumes,) if isinstance(consumes, str) else consumes)
         else:
             self.consumes = None
         self.produces = produces
@@ -509,7 +509,7 @@ class PathRouter:
     def __call__(self, environ: WsgiEnviron) -> Tuple[Endpoint, Dict[str, Any]]:
         """Route resolver."""
         path_parameters: Dict[str, Any] = {}
-        route_path = environ.get(_WSGI_PATH_INFO_HEADER)
+        route_path = environ[_WSGI_PATH_INFO_HEADER]
         entry = self.direct_mapping.get(route_path)
         if entry is None:
             entry = self.root

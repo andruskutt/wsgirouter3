@@ -1,3 +1,9 @@
+## 0.4.0 (2021-12-02)
+
+### Features
+
+* shortcut route decorators for HTTP methods DELETE, GET, PATCH, POST, PUT
+
 ## 0.3.0 (2021-10-31)
 
 ### Features

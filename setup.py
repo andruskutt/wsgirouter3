@@ -13,7 +13,7 @@ with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), 'r', enco
 
 setup(
     name='wsgirouter3',
-    version='0.3.0',
+    version='0.4.0',
     description='WSGI routing library',
     long_description=readme,
     long_description_content_type='text/markdown',

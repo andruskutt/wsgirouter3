@@ -3,7 +3,7 @@
 from http import HTTPStatus
 from wsgiref.simple_server import make_server
 
-from wsgirouter3 import HTTPError, PathRouter, ROUTE_OPTIONS_KEY, Request, WsgiApp
+from wsgirouter3 import HTTPError, PathRouter, Request, WsgiApp
 
 
 router = PathRouter()
@@ -30,7 +30,7 @@ def public_handler(request: Request) -> dict:
 
 
 def check_authorization(request: Request) -> None:
-    options = request.environ[ROUTE_OPTIONS_KEY]
+    options = request.environ[WsgiApp.route_options_key]
     if not (isinstance(options, dict) and options.get('authorization') is False):
         # TODO: actual check for authorization
         raise HTTPError(HTTPStatus.UNAUTHORIZED, headers={'WWW-Authenticate': 'Bearer'})

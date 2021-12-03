@@ -27,13 +27,10 @@ from urllib.parse import parse_qsl
 from uuid import UUID
 
 __all__ = [
-    'ROUTE_OPTIONS_KEY',
     'HTTPError', 'MethodNotAllowedError', 'NotFoundError',
     'PathRouter', 'PathParameter', 'RouteDefinition',
     'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body',
 ]
-
-ROUTE_OPTIONS_KEY = 'route.options'
 
 _CONTENT_LENGTH_HEADER = 'Content-Length'
 _CONTENT_TYPE_HEADER = 'Content-Type'
@@ -307,7 +304,7 @@ class WsgiAppConfig:
 
 class WsgiApp:
     # environ keys for routing data
-    options_key: str = ROUTE_OPTIONS_KEY
+    route_options_key: str = 'route.options'
     routing_args_key: str = 'wsgiorg.routing_args'
 
     def __init__(self, router: 'PathRouter', config: Optional[WsgiAppConfig] = None) -> None:
@@ -324,7 +321,7 @@ class WsgiApp:
                 before_request(request)
 
             kwargs = self.bind_parameters(endpoint, path_parameters, request)
-            environ[self.options_key] = endpoint.options
+            environ[self.route_options_key] = endpoint.options
             environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, kwargs)
 
             result = endpoint.handler(**kwargs)

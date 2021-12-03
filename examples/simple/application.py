@@ -14,22 +14,22 @@ router = PathRouter()
 
 # handler gets query string as parameter if there is parameter with generic type Query
 # adding route with decorator
-@router.route('/get', methods=('GET',))
+@router.get('/get')
 def get(query: Query[dict]) -> dict:
     # dict is converted to json
     return {'query_parameters': query}
 
 
 # parameter type is taken from handler method signature
-@router.route('/post/{some_id}', methods=('POST',))
+@router.post('/post/{some_id}')
 def post_with_id(some_id: int) -> tuple:
     # status-only result as single element tuple
     return _NO_CONTENT
 
 
 # multiple routes for same endpoint
-@router.route('/put', methods=('PUT',), defaults={'some_id': None})
-@router.route('/put/{some_id}', methods=('PUT',))
+@router.put('/put', defaults={'some_id': None})
+@router.put('/put/{some_id}')
 def put_with_id(some_id: Optional[int]) -> tuple:
     return _NO_CONTENT
 

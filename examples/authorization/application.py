@@ -12,20 +12,21 @@ _PUBLIC_ROUTE = {'authorization': False}
 
 
 # assume by default routes are secured (no options given to route)
-@router.route('/get', methods=('GET',))
+@router.get('/get')
 def secured_handler() -> dict:
     # dict is converted to json
     return {}
 
 
 # public route as exceptional case (options to route with flag)
-@router.route('/public/get', methods=('GET',), options=_PUBLIC_ROUTE)
+@router.get('/public/get', options=_PUBLIC_ROUTE)
 def public_handler(request: Request) -> dict:
     # remove values not supported by default json serialization
     result = {**request.environ}
     result.pop('wsgi.file_wrapper', None)
     result.pop('wsgi.input', None)
     result.pop('wsgi.errors', None)
+    result.pop('wsgiorg.routing_args', None)
     return result
 
 

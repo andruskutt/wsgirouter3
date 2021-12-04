@@ -49,10 +49,10 @@ _FORM_CONTENT_TYPES: Final = {_CONTENT_TYPE_MULTIPART_FORM_DATA, _CONTENT_TYPE_A
 _FORM_DECODE_ENVIRONMENT_KEYS: Final = {_WSGI_CONTENT_LENGTH_HEADER, _WSGI_CONTENT_TYPE_HEADER}
 
 _NO_DATA_BODY: Final = b''
-_NO_DATA_RESULT: Final = _NO_DATA_BODY,
+_NO_DATA_RESULT: Final = (_NO_DATA_BODY,)
 
 _STATUSES_WITHOUT_CONTENT: Final = frozenset(
-    (s for s in HTTPStatus if (s >= 100 and s < 200) or s in (HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED)),
+    (s for s in HTTPStatus if (s >= 100 and s < 200) or s in (HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED))
 )
 _STATUS_ROW_FROM_CODE: Final = {s.value: f'{s} {s.phrase}' for s in HTTPStatus}
 
@@ -252,10 +252,10 @@ class WsgiAppConfig:
             if _CONTENT_TYPE_HEADER not in headers:
                 raise ValueError('Unknown content type for binary result')
 
-            result = result,
+            result = (result,)
             headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
         elif isinstance(result, str):
-            result = result.encode(),
+            result = (result.encode(),)
             headers.setdefault(_CONTENT_TYPE_HEADER, self.default_str_content_type)
             headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
         elif not isinstance(result, GeneratorType):
@@ -278,7 +278,7 @@ class WsgiAppConfig:
         response = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
         headers[_CONTENT_LENGTH_HEADER] = str(len(response))
-        return response,
+        return (response,)
 
     def error_handler(self, environ: WsgiEnviron, exc: Exception) -> Any:
         if not isinstance(exc, HTTPError):

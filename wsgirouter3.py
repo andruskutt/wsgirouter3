@@ -243,7 +243,7 @@ class WsgiAppConfig:
 
         if status in _STATUSES_WITHOUT_CONTENT:
             if result is not None:
-                raise ValueError(f'Unexpected result for {status.phrase} response')
+                raise ValueError(f'Unexpected result for {_STATUS_ROW_FROM_CODE[status]} response')
 
             result = _NO_DATA_RESULT
         elif isinstance(result, dict):

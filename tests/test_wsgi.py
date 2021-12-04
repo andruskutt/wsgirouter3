@@ -341,6 +341,9 @@ def test_response_conversion_invalid():
     with pytest.raises(ValueError, match='Unexpected result'):
         conf.result_handler(env, (HTTPStatus.NO_CONTENT, b'1234'))
 
+    with pytest.raises(ValueError, match='Unexpected result'):
+        conf.result_handler(env, (204, b'1234'))
+
     with pytest.raises(ValueError, match='Invalid type of status'):
         conf.result_handler(env, ('123 Wrong status',))
 

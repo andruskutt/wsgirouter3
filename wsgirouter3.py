@@ -19,10 +19,10 @@ from http.cookies import SimpleCookie
 from types import GeneratorType
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
 try:
-    from typing import get_args, get_origin, get_type_hints, Annotated
+    from typing import get_args, get_origin, get_type_hints, Annotated, Final
 except ImportError:  # pragma: no cover
-    # python 3.8 or earlier
-    from typing_extensions import get_args, get_origin, get_type_hints, Annotated
+    # python 3.8 or earlier, Final is supported starting from 3.8
+    from typing_extensions import get_args, get_origin, get_type_hints, Annotated, Final
 from urllib.parse import parse_qsl
 from uuid import UUID
 
@@ -32,46 +32,46 @@ __all__ = [
     'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body',
 ]
 
-_CONTENT_LENGTH_HEADER = 'Content-Length'
-_CONTENT_TYPE_HEADER = 'Content-Type'
-_CONTENT_TYPE_APPLICATION_JSON = 'application/json'
-_CONTENT_TYPE_MULTIPART_FORM_DATA = 'multipart/form-data'
-_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED = 'application/x-www-form-urlencoded'
+_CONTENT_LENGTH_HEADER: Final = 'Content-Length'
+_CONTENT_TYPE_HEADER: Final = 'Content-Type'
+_CONTENT_TYPE_APPLICATION_JSON: Final = 'application/json'
+_CONTENT_TYPE_MULTIPART_FORM_DATA: Final = 'multipart/form-data'
+_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: Final = 'application/x-www-form-urlencoded'
 
-_WSGI_ACCEPT_HEADER = 'HTTP_ACCEPT'
-_WSGI_CONTENT_LENGTH_HEADER = 'CONTENT_LENGTH'
-_WSGI_CONTENT_TYPE_HEADER = 'CONTENT_TYPE'
-_WSGI_PATH_INFO_HEADER = 'PATH_INFO'
-_WSGI_QUERY_STRING_HEADER = 'QUERY_STRING'
-_WSGI_REQUEST_METHOD_HEADER = 'REQUEST_METHOD'
+_WSGI_ACCEPT_HEADER: Final = 'HTTP_ACCEPT'
+_WSGI_CONTENT_LENGTH_HEADER: Final = 'CONTENT_LENGTH'
+_WSGI_CONTENT_TYPE_HEADER: Final = 'CONTENT_TYPE'
+_WSGI_PATH_INFO_HEADER: Final = 'PATH_INFO'
+_WSGI_QUERY_STRING_HEADER: Final = 'QUERY_STRING'
+_WSGI_REQUEST_METHOD_HEADER: Final = 'REQUEST_METHOD'
 
-_FORM_CONTENT_TYPES = {_CONTENT_TYPE_MULTIPART_FORM_DATA, _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED}
-_FORM_DECODE_ENVIRONMENT_KEYS = {_WSGI_CONTENT_LENGTH_HEADER, _WSGI_CONTENT_TYPE_HEADER}
+_FORM_CONTENT_TYPES: Final = {_CONTENT_TYPE_MULTIPART_FORM_DATA, _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED}
+_FORM_DECODE_ENVIRONMENT_KEYS: Final = {_WSGI_CONTENT_LENGTH_HEADER, _WSGI_CONTENT_TYPE_HEADER}
 
-_NO_DATA_BODY = b''
-_NO_DATA_RESULT = _NO_DATA_BODY,
+_NO_DATA_BODY: Final = b''
+_NO_DATA_RESULT: Final = _NO_DATA_BODY,
 
-_STATUSES_WITHOUT_CONTENT = frozenset(
+_STATUSES_WITHOUT_CONTENT: Final = frozenset(
     (s for s in HTTPStatus if (s >= 100 and s < 200) or s in (HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED)),
 )
-_STATUS_ROW_FROM_CODE = {s.value: f'{s} {s.phrase}' for s in HTTPStatus}
+_STATUS_ROW_FROM_CODE: Final = {s.value: f'{s} {s.phrase}' for s in HTTPStatus}
 
-_PATH_SEPARATOR = '/'
+_PATH_SEPARATOR: Final = '/'
 
-_SIGNATURE_CONTEXT_PARAMETER_KINDS = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-_SIGNATURE_ALLOWED_PARAMETER_KINDS = (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+_SIGNATURE_CONTEXT_PARAMETER_KINDS: Final = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+_SIGNATURE_ALLOWED_PARAMETER_KINDS: Final = (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
 
-_BOOL_TRUE_VALUES = frozenset(('1', 'true', 'yes', 'on'))
-_BOOL_VALUES = frozenset(frozenset(('0', 'false', 'no', 'off')) | _BOOL_TRUE_VALUES)
+_BOOL_TRUE_VALUES: Final = frozenset(('1', 'true', 'yes', 'on'))
+_BOOL_VALUES: Final = frozenset(frozenset(('0', 'false', 'no', 'off')) | _BOOL_TRUE_VALUES)
 
-_NONE_TYPE = type(None)
+_NONE_TYPE: Final = type(None)
 F = TypeVar('F', bound=Callable[..., Any])
 T = TypeVar('T')
 
 WsgiEnviron = Dict[str, Any]
 RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
 
-_NO_POSITIONAL_ARGS = ()
+_NO_POSITIONAL_ARGS: Final = ()
 
 _logger = logging.getLogger('wsgirouter3')
 
@@ -108,7 +108,7 @@ class cached_property:  # noqa: N801
 
 
 class HTTPError(Exception):
-    def __init__(self, status: HTTPStatus, result=None, headers: Optional[dict] = None) -> None:
+    def __init__(self, status: HTTPStatus, result=None, headers: Optional[Dict[str, Any]] = None) -> None:
         self.status = status
         self.result = status.description if result is None and status not in _STATUSES_WITHOUT_CONTENT else result
         self.headers = headers
@@ -217,7 +217,7 @@ class Request:
 @dataclass
 class WsgiAppConfig:
     before_request: Optional[Callable[[Request], None]] = None
-    after_request: Optional[Callable[[int, dict, WsgiEnviron], None]] = None
+    after_request: Optional[Callable[[int, Dict[str, Any], WsgiEnviron], None]] = None
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
@@ -482,7 +482,7 @@ class UUIDPathParameter(PathParameter):
         kwargs[self.name] = UUID(path_segment)
 
 
-_DEFAULT_PARAMETER_TYPE_MAP = {
+_DEFAULT_PARAMETER_TYPE_MAP: Final = {
     bool: BoolPathParameter,
     int: IntPathParameter,
     str: StringPathParameter,

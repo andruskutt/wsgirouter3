@@ -79,7 +79,7 @@ WsgiAppConfig class
 | Task | Action |
 | ----------- | ----------- |
 | Want to use another json library or configure value types serialized / deserialized | Override json_serializer / json_deserializer |
-| Change maximum length of accepted request body | Set value of max_content_length |
+| Change maximum length of accepted request body | Set value of max_request_content_length |
 | Change default content type for str returned | Change value of default_str_content_type |
 | Add authorization | Set before_request hook handler, use route options to define roles. See [sample](https://github.com/andruskutt/wsgirouter3/tree/main/examples/authorization/application.py) |
 | Handle more return types | Add entry of tuple[matcher, handler] to result_converters or override custom_result_handler |

@@ -169,7 +169,7 @@ class Request:
         if content_length == 0:
             return _NO_DATA_BODY
 
-        max_content_length = self.config.max_content_length
+        max_content_length = self.config.max_request_content_length
         if max_content_length is not None and max_content_length < content_length:
             raise HTTPError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
 
@@ -229,7 +229,7 @@ class WsgiAppConfig:
     result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
-    max_content_length: Optional[int] = None
+    max_request_content_length: Optional[int] = None
     compress_content_types = frozenset((_CONTENT_TYPE_APPLICATION_JSON,))
     compress_min_response_length = 1000
 

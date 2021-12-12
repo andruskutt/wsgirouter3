@@ -89,9 +89,9 @@ def test_request_missing_content_length():
     assert exc_info.value.args[0] == HTTPStatus.LENGTH_REQUIRED
 
 
-def test_request_max_content_length():
+def test_request_max_request_content_length():
     conf = WsgiAppConfig()
-    conf.max_content_length = 1
+    conf.max_request_content_length = 1
     env = {'CONTENT_LENGTH': '2'}
     r = Request(conf, env)
 

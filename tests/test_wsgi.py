@@ -501,6 +501,37 @@ def test_response_content_negotiation():
     assert returned_status == '200 OK'
 
 
+def test_response_compression():
+    url = '/url'
+    router = PathRouter()
+    strlen = 1000
+
+    @router.route(url, ('GET',))
+    def json_endpoint() -> dict:
+        return {'a': 1, 'b': 'x' * strlen}
+
+    app = WsgiApp(router)
+    assert strlen >= app.config.compress_min_response_length
+
+    headers = {}
+
+    def start_response(status, hdrs):
+        headers.update(hdrs)
+
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url, 'HTTP_ACCEPT_ENCODING': 'deflate, gzip;q=1.0, *;q=0.5'}
+    result = b''.join(app(env, start_response))
+    assert len(result) == int(headers.get('Content-Length'))
+    assert headers.get('Content-Encoding') == 'gzip'
+    assert headers.get('Vary') == 'Accept-Encoding'
+
+    headers.clear()
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url, 'HTTP_ACCEPT_ENCODING': 'deflate, gzip;q=0, *;q=0.5'}
+    result = b''.join(app(env, start_response))
+    assert len(result) == int(headers.get('Content-Length'))
+    assert headers.get('Content-Encoding') is None
+    assert headers.get('Vary') is None
+
+
 def test_hooks():
     url = '/url'
 

@@ -13,6 +13,7 @@ import io
 import json
 import logging
 import re
+import zlib
 from dataclasses import asdict as dataclass_asdict, dataclass, field, is_dataclass
 from http import HTTPStatus
 from http.cookies import SimpleCookie
@@ -32,12 +33,16 @@ __all__ = [
     'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body',
 ]
 
+_ACCEPT_ENCODING_HEADER: Final = 'Accept-Encoding'
+_CONTENT_ENCODING_HEADER: Final = 'Content-Encoding'
 _CONTENT_LENGTH_HEADER: Final = 'Content-Length'
 _CONTENT_TYPE_HEADER: Final = 'Content-Type'
 _CONTENT_TYPE_APPLICATION_JSON: Final = 'application/json'
 _CONTENT_TYPE_MULTIPART_FORM_DATA: Final = 'multipart/form-data'
 _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: Final = 'application/x-www-form-urlencoded'
+_VARY_HEADER: Final = 'Vary'
 
+_WSGI_ACCEPT_ENCODING_HEADER: Final = 'HTTP_ACCEPT_ENCODING'
 _WSGI_ACCEPT_HEADER: Final = 'HTTP_ACCEPT'
 _WSGI_CONTENT_LENGTH_HEADER: Final = 'CONTENT_LENGTH'
 _WSGI_CONTENT_TYPE_HEADER: Final = 'CONTENT_TYPE'
@@ -50,6 +55,9 @@ _FORM_DECODE_ENVIRONMENT_KEYS: Final = {_WSGI_CONTENT_LENGTH_HEADER, _WSGI_CONTE
 
 _NO_DATA_BODY: Final = b''
 _NO_DATA_RESULT: Final = (_NO_DATA_BODY,)
+
+_CONTENT_ENCODING_GZIP: Final = 'gzip'
+_QUALITY_ZERO: Final = frozenset(('0', '0.0', '0.00', '0.000'))
 
 _STATUSES_WITHOUT_CONTENT: Final = frozenset(
     (s for s in HTTPStatus if (s >= 100 and s < 200) or s in (HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED))
@@ -222,6 +230,8 @@ class WsgiAppConfig:
     default_str_content_type: str = 'text/plain;charset=utf-8'
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_content_length: Optional[int] = None
+    compress_content_types = frozenset((_CONTENT_TYPE_APPLICATION_JSON,))
+    compress_min_response_length = 1000
 
     def request_factory(self, environ: WsgiEnviron) -> Request:
         return Request(self, environ)
@@ -247,23 +257,22 @@ class WsgiAppConfig:
 
             result = _NO_DATA_RESULT
         elif isinstance(result, dict):
-            result = self.json_result_handler(result, headers)
+            result = self.json_result_handler(environ, result, headers)
         elif isinstance(result, bytes):
             if _CONTENT_TYPE_HEADER not in headers:
                 raise ValueError('Unknown content type for binary result')
 
-            result = (result,)
-            headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
+            result = self.compress_result(environ, result, headers)
         elif isinstance(result, str):
-            result = (result.encode(),)
+            result = result.encode()
             headers.setdefault(_CONTENT_TYPE_HEADER, self.default_str_content_type)
-            headers[_CONTENT_LENGTH_HEADER] = str(len(result[0]))
+            result = self.compress_result(environ, result, headers)
         elif not isinstance(result, GeneratorType):
-            result = self.custom_result_handler(result, headers)
+            result = self.custom_result_handler(environ, result, headers)
 
         return status, result, headers
 
-    def custom_result_handler(self, result: Any, headers: dict) -> Iterable:
+    def custom_result_handler(self, environ: WsgiEnviron, result: Any, headers: dict) -> Iterable:
         for matcher, handler in self.result_converters:
             if matcher(result):
                 return handler(result, headers)
@@ -272,13 +281,35 @@ class WsgiAppConfig:
         if not is_dataclass(result):
             raise ValueError(f'Unknown result {result}')
 
-        return self.json_result_handler(dataclass_asdict(result), headers)
+        return self.json_result_handler(environ, dataclass_asdict(result), headers)
 
-    def json_result_handler(self, result: Any, headers: dict) -> Iterable[bytes]:
+    def json_result_handler(self, environ: WsgiEnviron, result: Any, headers: dict) -> Iterable[bytes]:
         response = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
-        headers[_CONTENT_LENGTH_HEADER] = str(len(response))
-        return (response,)
+        return self.compress_result(environ, response, headers)
+
+    def can_compress_result(self, environ: WsgiEnviron, result: bytes, headers: dict) -> bool:
+        if headers.get(_CONTENT_TYPE_HEADER) in self.compress_content_types:
+            accepted_encoding = environ.get(_WSGI_ACCEPT_ENCODING_HEADER)
+            if _CONTENT_ENCODING_HEADER not in headers and accepted_encoding is not None:
+                if len(result) >= self.compress_min_response_length:
+                    for ae in accepted_encoding.split(','):
+                        if _parse_header_with_quality(ae.lstrip()) == _CONTENT_ENCODING_GZIP:
+                            return True
+        return False
+
+    def compress_result(self, environ: WsgiEnviron, result: bytes, headers: dict) -> Iterable[bytes]:
+        if self.can_compress_result(environ, result, headers):
+            co = zlib.compressobj(level=6, wbits=16 + zlib.MAX_WBITS)
+            result = co.compress(result) + co.flush()
+
+            headers[_CONTENT_ENCODING_HEADER] = _CONTENT_ENCODING_GZIP
+            vary = headers.get(_VARY_HEADER)
+            vary = _ACCEPT_ENCODING_HEADER if vary is None else f'{vary},{_ACCEPT_ENCODING_HEADER}'
+            headers[_VARY_HEADER] = vary
+
+        headers[_CONTENT_LENGTH_HEADER] = str(len(result))
+        return (result,)
 
     def error_handler(self, environ: WsgiEnviron, exc: Exception) -> Any:
         if not isinstance(exc, HTTPError):
@@ -544,7 +575,7 @@ class PathRouter:
             accepted_media_ranges = environ.get(_WSGI_ACCEPT_HEADER)
             if accepted_media_ranges:
                 for ct in accepted_media_ranges.split(','):
-                    media_range = _parse_header(ct.lstrip())
+                    media_range = _parse_header_with_quality(ct.lstrip())
                     # XXX partial media range support: type/*
                     if response_content_type == media_range or media_range == '*/*':
                         break
@@ -784,6 +815,18 @@ class PathRouter:
 def _parse_header(header: Optional[str]) -> Optional[str]:
     # pretend all header values are case-insensitive
     return header.split(';', 1)[0].strip().lower() if header else None
+
+
+def _parse_header_with_quality(header: str) -> Optional[str]:
+    header_parts = header.split(';')
+    for parameter in header_parts[1:]:
+        # XXX require positive quality value
+        parts = parameter.split('=', 1)
+        if len(parts) == 2 and parts[0].strip().lower() == 'q' and parts[1].strip() in _QUALITY_ZERO:
+            # not acceptable
+            return None
+
+    return header_parts[0].strip().lower()
 
 
 def _split_route_path(route_path: str) -> List[str]:

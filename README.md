@@ -14,6 +14,8 @@ Supports overlapping path segments: zero or more literal segments can overlap wi
 
 Route decorators for HTTP methods DELETE, GET, PATCH, POST, PUT.
 
+Response compression. By default enabled for application/json.
+
 
 ```python
 @router.route('/abc/literal', methods=('GET',))
@@ -85,6 +87,8 @@ WsgiAppConfig class
 | Handle more return types | Add entry of tuple[matcher, handler] to result_converters or override custom_result_handler |
 | Validate/convert query string and request body | Use Query and Body generics with value class in handler and override binder |
 | Customize error handling | Override error_handler |
+| Disable default application/json response compression | set compress_content_types to empty collection |
+| Enable response compression for more cases | Update compress_content_types and/or override can_compress_result |
 
 PathRouter class
 

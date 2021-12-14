@@ -1,3 +1,15 @@
+## 0.5.0 (2021-12-14)
+
+### Features
+
+* added compression support for responses. By default enabled for application/json
+* Accept header negotiation now uses quality value too (type with q=0 is ignored)
+* fixed handling of Body and Query annotated parameters when PEP-563 is enabled
+
+### Refactoring
+
+* renamed configuration parameter max_content_length to max_request_content_length
+
 ## 0.4.0 (2021-12-02)
 
 ### Features

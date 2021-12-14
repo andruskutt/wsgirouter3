@@ -166,7 +166,7 @@ def test_bad_path_parameter_implementation():
 
     url = '/{value}'
 
-    @r.route(url, methods=('GET',))
+    @r.get(url)
     def handler(value: float):
         raise AssertionError('Cannot happen')
 
@@ -395,7 +395,7 @@ def test_partial_path():
     url = '/extra/long'
     r = PathRouter()
 
-    @r.route(url + '/some/suffix', ('GET',))
+    @r.get(url + '/some/suffix')
     def handler():
         pass
 

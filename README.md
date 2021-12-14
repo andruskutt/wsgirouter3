@@ -18,7 +18,7 @@ Response compression. By default enabled for application/json.
 
 
 ```python
-@router.route('/abc/literal', methods=('GET',))
+@router.get('/abc/literal')
 def literal():
     pass
 
@@ -31,7 +31,7 @@ Multiple routes can point to same handler:
 
 ```python
 @router.get('/abc', defaults={'variable': None})
-@router.route('/abc/{variable}', methods=('GET',))
+@router.get('/abc/{variable}')
 def with_optional_parameter(variable: Optional[str]):
     pass
 ```
@@ -39,7 +39,7 @@ def with_optional_parameter(variable: Optional[str]):
 Content negotiation:
 
 ```python
-@router.route('/get', methods=('GET',), produces='application/json')
+@router.get('/get', produces='application/json')
 def get() -> dict:
     return {'field': 'value'}
 
@@ -52,17 +52,17 @@ def post_with_json(req: Request) -> Tuple[int]:
 Query string and request body binding:
 
 ```python
-@router.route('/get', methods=('GET',), produces='application/json')
+@router.get('/get', produces='application/json')
 def get(query: Query[dict]) -> dict:
     return query
 
-@router.route('/post', methods=['POST'], consumes='application/json')
+@router.post('/post', consumes='application/json')
 def post_with_json(data: Body[dict]) -> Tuple[int]:
     # do something with data
     return 204,
 ```
 
-Return type handling:
+Handler return type handling:
 
 | Type | Description |
 | ---- | ----------- |

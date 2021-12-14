@@ -407,7 +407,7 @@ def test_custom_response():
 
     router = PathRouter()
 
-    @router.route(url, ('GET',))
+    @router.get(url)
     def endpoint():
         return (200, Custom(result))
 
@@ -437,15 +437,15 @@ def test_request_content_negotiation():
 
     router = PathRouter()
 
-    @router.route(text_url, ('GET',), consumes='text/plain')
+    @router.get(text_url, consumes='text/plain')
     def text_endpoint():
         return (204,)
 
-    @router.route(json_url, ('GET',), consumes='application/json')
+    @router.get(json_url, consumes='application/json')
     def json_endpoint():
         return (204,)
 
-    @router.route(all_url, ('GET',), consumes=('application/json', 'text/plain'))
+    @router.get(all_url, consumes=('application/json', 'text/plain'))
     def all_endpoint():
         return (204,)
 
@@ -479,7 +479,7 @@ def test_response_content_negotiation():
     url = '/url'
     router = PathRouter()
 
-    @router.route(url, ('GET',), produces='application/json')
+    @router.get(url, produces='application/json')
     def json_endpoint() -> dict:
         return {'a': 1}
 
@@ -506,7 +506,7 @@ def test_response_compression():
     router = PathRouter()
     strlen = 1000
 
-    @router.route(url, ('GET',))
+    @router.get(url)
     def json_endpoint() -> dict:
         return {'a': 1, 'b': 'x' * strlen}
 
@@ -675,7 +675,7 @@ def test_query_binding():
 
     router = PathRouter()
 
-    @router.route(url, ('GET',))
+    @router.get(url)
     def endpoint(query: Query[dict]) -> dict:
         return query
 
@@ -700,7 +700,7 @@ def test_body_binding_json():
 
     router = PathRouter()
 
-    @router.route(url, ('POST',))
+    @router.post(url)
     def endpoint(body: Body[dict]) -> dict:
         return body
 
@@ -726,7 +726,7 @@ def test_body_binding_form():
 
     router = PathRouter()
 
-    @router.route(url, ('POST',))
+    @router.post(url)
     def endpoint(body: Body[cgi.FieldStorage]) -> dict:
         return {key: body.getfirst(key) for key in body.keys()}
 
@@ -751,7 +751,7 @@ def test_body_binding_bad_datatype():
 
     router = PathRouter()
 
-    @router.route(url, ('POST',))
+    @router.post(url)
     def endpoint(body: Body[list]) -> dict:
         return {'body': body}
 
@@ -776,7 +776,7 @@ def test_body_binding_bad_content_type():
 
     router = PathRouter()
 
-    @router.route(url, ('POST',))
+    @router.post(url)
     def endpoint(body: Body[dict]) -> dict:
         return body
 
@@ -797,7 +797,7 @@ def test_request_binding():
 
     router = PathRouter()
 
-    @router.route(url, ('GET',))
+    @router.get(url)
     def endpoint(request: Request) -> dict:
         return {'method': request.method}
 

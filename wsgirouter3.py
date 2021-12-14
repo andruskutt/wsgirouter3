@@ -766,6 +766,7 @@ class PathRouter:
             bindings = [p for p in parameters if type_hints.get(p.name) in self.supported_request_types]
         else:
             bindings = [p for p in parameters if _is_annotated_with(type_hints.get(p.name), binding_type)]
+
         if len(bindings) > 1:
             raise ValueError(f'{route_path}: too many {binding_type.__name__}[] annotated parameters')
 
@@ -779,7 +780,7 @@ class PathRouter:
         binding_name = bp.name
         parameter_names.add(binding_name)
 
-        args = get_args(bp.annotation)
+        args = get_args(type_hints[binding_name])
         return (binding_name, binding_type if is_request_binding else args[0])
 
     def get_routes(self) -> Iterable[RouteDefinition]:

@@ -524,7 +524,17 @@ def test_response_compression():
     assert headers.get('Content-Encoding') == 'gzip'
     assert headers.get('Vary') == 'Accept-Encoding'
 
+    # switch off compression
     headers.clear()
+    app.config.compress_level = 0
+    result = b''.join(app(env, start_response))
+    assert len(result) == int(headers.get('Content-Length'))
+    assert headers.get('Content-Encoding') is None
+    assert headers.get('Vary') is None
+
+    # set accept encoding to avoid gzip
+    headers.clear()
+    app.config.compress_level = 2
     env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url, 'HTTP_ACCEPT_ENCODING': 'deflate, gzip;q=0, *;q=0.5'}
     result = b''.join(app(env, start_response))
     assert len(result) == int(headers.get('Content-Length'))

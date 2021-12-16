@@ -14,7 +14,7 @@ Supports overlapping path segments: zero or more literal segments can overlap wi
 
 Route decorators for HTTP methods DELETE, GET, PATCH, POST, PUT.
 
-Response compression. By default enabled for application/json.
+Response compression. By default enabled for application/json. Configurable compression level.
 
 
 ```python
@@ -87,8 +87,9 @@ WsgiAppConfig class
 | Handle more return types | Add entry of tuple[matcher, handler] to result_converters or override custom_result_handler |
 | Validate/convert query string and request body | Use Query and Body generics with value class in handler and override binder |
 | Customize error handling | Override error_handler |
-| Disable default application/json response compression | set compress_content_types to empty collection |
+| Disable response compression | set compress_level to 0 |
 | Enable response compression for more cases | Update compress_content_types and/or override can_compress_result |
+| Configure compression level | Set value of compress_level (0-9 or -1, see zlib documentation) |
 
 PathRouter class
 

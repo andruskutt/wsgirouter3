@@ -231,6 +231,7 @@ class WsgiAppConfig:
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_request_content_length: Optional[int] = None
     compress_content_types = frozenset((_CONTENT_TYPE_APPLICATION_JSON,))
+    compress_level = 2
     compress_min_response_length = 1000
 
     def request_factory(self, environ: WsgiEnviron) -> Request:
@@ -289,7 +290,7 @@ class WsgiAppConfig:
         return self.compress_result(environ, response, headers)
 
     def can_compress_result(self, environ: WsgiEnviron, result: bytes, headers: dict) -> bool:
-        if headers.get(_CONTENT_TYPE_HEADER) in self.compress_content_types:
+        if self.compress_level != 0 and headers.get(_CONTENT_TYPE_HEADER) in self.compress_content_types:
             accepted_encoding = environ.get(_WSGI_ACCEPT_ENCODING_HEADER)
             if _CONTENT_ENCODING_HEADER not in headers and accepted_encoding is not None:
                 if len(result) >= self.compress_min_response_length:
@@ -300,7 +301,7 @@ class WsgiAppConfig:
 
     def compress_result(self, environ: WsgiEnviron, result: bytes, headers: dict) -> Iterable[bytes]:
         if self.can_compress_result(environ, result, headers):
-            co = zlib.compressobj(level=6, wbits=16 + zlib.MAX_WBITS)
+            co = zlib.compressobj(level=self.compress_level, wbits=16 + zlib.MAX_WBITS)
             result = co.compress(result) + co.flush()
 
             headers[_CONTENT_ENCODING_HEADER] = _CONTENT_ENCODING_GZIP

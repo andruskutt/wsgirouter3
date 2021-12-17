@@ -282,7 +282,7 @@ class WsgiAppConfig:
         if not is_dataclass(result):
             raise ValueError(f'Unknown result {result}')
 
-        return self.json_result_handler(environ, dataclass_asdict(result), headers)
+        return self.json_result_handler(environ, result, headers)
 
     def json_result_handler(self, environ: WsgiEnviron, result: Any, headers: dict) -> Iterable[bytes]:
         response = self.json_serializer(result)
@@ -324,6 +324,9 @@ class WsgiAppConfig:
         return json.loads(obj)
 
     def json_serializer(self, obj: Any) -> bytes:
+        if not isinstance(obj, dict) and is_dataclass(obj):
+            obj = dataclass_asdict(obj)
+
         # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
         return json.dumps(obj).encode()
 

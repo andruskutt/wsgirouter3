@@ -424,6 +424,13 @@ def test_custom_response():
     assert b''.join(app(env, start_response)) == result
 
 
+def test_response_invalid_json():
+    conf = WsgiAppConfig()
+
+    with pytest.raises(TypeError, match='Object of type Decimal'):
+        conf.json_serializer(decimal.Decimal('0'))
+
+
 def test_request_content_negotiation():
     text_url = '/url/text'
     json_url = '/url/json'

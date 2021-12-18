@@ -585,6 +585,27 @@ def test_hooks():
     assert after_request_called
 
 
+def test_options_availability_in_hooks():
+    router = PathRouter()
+    app = WsgiApp(router)
+
+    url = '/'
+    route_options = {'a': 'b'}
+
+    @router.get(url, options=route_options)
+    def handler(req: Request):
+        opts = req.environ[app.route_options_key]
+        assert opts is route_options
+        return 204,
+
+    def before_request(req: Request) -> None:
+        opts = req.environ[app.route_options_key]
+        assert opts is route_options
+
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url}
+    assert app(env, lambda _s, _h: None) == (b'',)
+
+
 def test_wsgi_application():
     env = {'REQUEST_METHOD': 'GET'}
 

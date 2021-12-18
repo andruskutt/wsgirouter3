@@ -349,6 +349,7 @@ class WsgiApp:
     def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, List[tuple]], Any]) -> Iterable:
         try:
             endpoint, path_parameters = self.router(environ)
+            environ[self.route_options_key] = endpoint.options
 
             request = self.config.request_factory(environ)
             before_request = self.config.before_request
@@ -356,7 +357,6 @@ class WsgiApp:
                 before_request(request)
 
             kwargs = self.bind_parameters(endpoint, path_parameters, request)
-            environ[self.route_options_key] = endpoint.options
             environ[self.routing_args_key] = (_NO_POSITIONAL_ARGS, kwargs)
 
             result = endpoint.handler(**kwargs)

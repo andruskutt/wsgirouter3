@@ -615,6 +615,8 @@ class PathRouter:
                   options: Any = None,
                   consumes: Union[str, Iterable[str], None] = None,
                   produces: Optional[str] = None) -> None:
+        if not (route_path and route_path.startswith(_PATH_SEPARATOR)):
+            raise ValueError(f'Route path must start with {_PATH_SEPARATOR}')
         if not methods:
             raise ValueError(f'{route_path}: no methods defined')
 
@@ -671,6 +673,9 @@ class PathRouter:
             self.direct_mapping[route_path] = entry
 
     def add_subrouter(self, route_path: str, router: 'PathRouter') -> None:
+        if not (route_path and route_path.startswith(_PATH_SEPARATOR)):
+            raise ValueError(f'Route path must start with {_PATH_SEPARATOR}')
+
         entry, _ = self.parse_route_path(route_path, None, None)
         if entry is self.root:
             raise ValueError(f'{route_path}: missing path prefix for subrouter')

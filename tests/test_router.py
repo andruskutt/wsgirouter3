@@ -263,6 +263,16 @@ def test_match_bad_routes(url):
         r(environ)
 
 
+def test_route_path_start_slash():
+    r = PathRouter()
+
+    def handler():
+        pass
+
+    with pytest.raises(ValueError, match='Route path must start with /'):
+        r.add_route('url-without-start-slash', ('GET',), handler)
+
+
 def test_trailing_slash():
     r = PathRouter()
     url = '/'
@@ -538,6 +548,9 @@ def test_subrouter():
     router.add_subrouter(prefix1, subrouter)
     router.add_subrouter(prefix2, subrouter)
 
+    with pytest.raises(ValueError, match='Route path must start with /'):
+        router.add_subrouter('url-without-start-slash', subrouter)
+
     with pytest.raises(ValueError, match='missing path segment'):
         router.add_subrouter('/trailing-separator/', subrouter)
 
@@ -618,17 +631,17 @@ def test_direct_mapping():
 
     subrouter = PathRouter()
 
-    subrouter.add_route('subroutes', methods, handler_without_parameters)
+    subrouter.add_route('/subroutes', methods, handler_without_parameters)
     subrouter.add_route('/subroutes/subpath', methods, handler_with_parameter, {'value': 'VALUE'})
 
     assert len(subrouter.direct_mapping) == 2
 
-    router.add_subrouter('subroutes', subrouter)
+    router.add_subrouter('/subroutes', subrouter)
 
     assert len(router.direct_mapping) == 4
 
     assert set(router.direct_mapping) == {
-        '/withdefault/subpath', '/bindings', 'subroutes/subroutes', 'subroutes/subroutes/subpath'
+        '/withdefault/subpath', '/bindings', '/subroutes/subroutes', '/subroutes/subroutes/subpath'
     }
 
 

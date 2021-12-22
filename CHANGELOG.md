@@ -1,3 +1,15 @@
+## 0.6.0 (2021-12-22)
+
+### Features
+
+* configurable compression level. Lowered default level from 6 to 2.
+* route paths must always start with /
+* made route options again accessible in before_request hook (broken in 0.3.0)
+
+### Refactoring
+
+* pass dataclass object to json serializer, do not convert it to dict too early. Possible performance gain with serializers which support native dataclass serialization.
+
 ## 0.5.0 (2021-12-14)
 
 ### Features

@@ -77,6 +77,7 @@ F = TypeVar('F', bound=Callable[..., Any])
 T = TypeVar('T')
 
 WsgiEnviron = Dict[str, Any]
+WsgiHeaders = Dict[str, str]
 RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
 
 _NO_POSITIONAL_ARGS: Final = ()
@@ -116,7 +117,7 @@ class cached_property:  # noqa: N801
 
 
 class HTTPError(Exception):
-    def __init__(self, status: HTTPStatus, result=None, headers: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, status: HTTPStatus, result: Any = None, headers: Optional[Dict[str, Any]] = None) -> None:
         self.status = status
         self.result = status.description if result is None and status not in _STATUSES_WITHOUT_CONTENT else result
         self.headers = headers
@@ -226,7 +227,9 @@ class Request:
 class WsgiAppConfig:
     before_request: Optional[Callable[[Request], None]] = None
     after_request: Optional[Callable[[int, Dict[str, Any], WsgiEnviron], None]] = None
-    result_converters: List[Tuple[Callable[[Any], bool], Callable[[Any, dict], Iterable]]] = field(default_factory=list)
+    result_converters: List[
+        Tuple[Callable[[Any], bool], Callable[[Any, WsgiHeaders], Iterable[bytes]]]
+    ] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
     logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_request_content_length: Optional[int] = None
@@ -237,7 +240,7 @@ class WsgiAppConfig:
     def request_factory(self, environ: WsgiEnviron) -> Request:
         return Request(self, environ)
 
-    def result_handler(self, environ: WsgiEnviron, result: Any) -> Tuple[int, Iterable, dict]:
+    def result_handler(self, environ: WsgiEnviron, result: Any) -> Tuple[int, Iterable[bytes], WsgiHeaders]:
         status = HTTPStatus.OK
         headers = {}
         if isinstance(result, tuple):
@@ -273,7 +276,7 @@ class WsgiAppConfig:
 
         return status, result, headers
 
-    def custom_result_handler(self, environ: WsgiEnviron, result: Any, headers: dict) -> Iterable:
+    def custom_result_handler(self, environ: WsgiEnviron, result: Any, headers: WsgiHeaders) -> Iterable[bytes]:
         for matcher, handler in self.result_converters:
             if matcher(result):
                 return handler(result, headers)
@@ -284,12 +287,12 @@ class WsgiAppConfig:
 
         return self.json_result_handler(environ, result, headers)
 
-    def json_result_handler(self, environ: WsgiEnviron, result: Any, headers: dict) -> Iterable[bytes]:
+    def json_result_handler(self, environ: WsgiEnviron, result: Any, headers: WsgiHeaders) -> Iterable[bytes]:
         response = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
         return self.compress_result(environ, response, headers)
 
-    def can_compress_result(self, environ: WsgiEnviron, result: bytes, headers: dict) -> bool:
+    def can_compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> bool:
         if self.compress_level != 0 and headers.get(_CONTENT_TYPE_HEADER) in self.compress_content_types:
             accepted_encoding = environ.get(_WSGI_ACCEPT_ENCODING_HEADER)
             if _CONTENT_ENCODING_HEADER not in headers and accepted_encoding is not None:
@@ -299,7 +302,7 @@ class WsgiAppConfig:
                             return True
         return False
 
-    def compress_result(self, environ: WsgiEnviron, result: bytes, headers: dict) -> Iterable[bytes]:
+    def compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> Iterable[bytes]:
         if self.can_compress_result(environ, result, headers):
             co = zlib.compressobj(level=self.compress_level, wbits=16 + zlib.MAX_WBITS)
             result = co.compress(result) + co.flush()
@@ -346,7 +349,7 @@ class WsgiApp:
         self.router = router
         self.config = config or WsgiAppConfig()
 
-    def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, List[tuple]], Any]) -> Iterable:
+    def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, List[tuple]], Any]) -> Iterable[bytes]:
         try:
             endpoint, path_parameters = self.router(environ)
             environ[self.route_options_key] = endpoint.options

@@ -188,6 +188,7 @@ class Request:
         sandbox[_WSGI_REQUEST_METHOD_HEADER] = 'POST'
         try:
             # PEP-594: cgi module will be removed in python 3.10 (status draft)
+            # strict_parsing toggling: https://bugs.python.org/issue45874
             return cgi.FieldStorage(fp=io.BytesIO(self.body), environ=sandbox, strict_parsing=self.content_length > 0)
         except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
@@ -478,6 +479,13 @@ class PathParameter(PathEntry):
     def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
+
+    def match(self, path_segment: str) -> bool:
+        """Return True if path segment matches parameter definition."""
+        return False
+
+    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
+        """Update kwargs with parameter parsing result."""
 
 
 class BoolPathParameter(PathParameter):

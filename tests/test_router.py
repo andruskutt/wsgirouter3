@@ -159,8 +159,7 @@ def test_bad_path_parameter_implementation():
     r = PathRouter()
 
     class BadPathParameterImplementation(PathParameter):
-        # no match override
-        pass
+        """No match/accept override."""
 
     r.parameter_types[float] = BadPathParameterImplementation
 
@@ -171,7 +170,7 @@ def test_bad_path_parameter_implementation():
         raise AssertionError('Cannot happen')
 
     environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url.format(value=3.0)}
-    with pytest.raises(AttributeError):
+    with pytest.raises(NotFoundError):
         r(environ)
 
 

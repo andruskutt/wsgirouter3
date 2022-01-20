@@ -13,16 +13,17 @@ import io
 import json
 import logging
 import re
+import sys
 import zlib
 from dataclasses import asdict as dataclass_asdict, dataclass, field, is_dataclass
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
-try:
+if sys.version_info >= (3, 9):
     from typing import get_args, get_origin, get_type_hints, Annotated, Final
-except ImportError:  # pragma: no cover
-    # python 3.8 or earlier, Final is supported starting from 3.8
+else:  # pragma: no cover
+    # Final is supported starting from 3.8
     from typing_extensions import get_args, get_origin, get_type_hints, Annotated, Final
 from urllib.parse import parse_qsl
 from uuid import UUID

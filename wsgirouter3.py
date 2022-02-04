@@ -156,7 +156,7 @@ class Request:
         return _parse_header(self.environ.get(_WSGI_CONTENT_TYPE_HEADER))
 
     @cached_property
-    def cookies(self) -> SimpleCookie[Any]:
+    def cookies(self) -> SimpleCookie:
         return SimpleCookie(self.environ.get('HTTP_COOKIE'))
 
     @cached_property

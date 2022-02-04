@@ -93,12 +93,12 @@ class cached_property:  # noqa: N801
     Implementation without locking, see: https://bugs.python.org/issue43468
     """
 
-    def __init__(self, func):
+    def __init__(self, func: Callable[[Any], Any]) -> None:
         self.func = func
-        self.attrname = None
+        self.attrname: Optional[str] = None
         self.__doc__ = func.__doc__
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: Type[Any], name: str) -> None:
         if self.attrname is None:
             self.attrname = name
         elif name != self.attrname:
@@ -106,7 +106,7 @@ class cached_property:  # noqa: N801
                 f'Cannot assign the same cached_property to two different names ({self.attrname!r} and {name!r}).'
             )
 
-    def __get__(self, instance, owner=None):
+    def __get__(self, instance: Any, owner: Optional[Type[Any]] = None) -> Any:
         if instance is None:
             return self
         if self.attrname is None:
@@ -156,7 +156,7 @@ class Request:
         return _parse_header(self.environ.get(_WSGI_CONTENT_TYPE_HEADER))
 
     @cached_property
-    def cookies(self) -> SimpleCookie:
+    def cookies(self) -> SimpleCookie[Any]:
         return SimpleCookie(self.environ.get('HTTP_COOKIE'))
 
     @cached_property

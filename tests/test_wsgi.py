@@ -9,8 +9,6 @@ import json
 import secrets
 from http import HTTPStatus
 
-import orjson
-
 import pytest
 
 import wsgirouter3
@@ -234,19 +232,6 @@ def test_request_json():
     assert r.json == {'A': 1, 'B': True, 'C': None, 'D': decimal.Decimal('0.1')}
 
 
-def test_request_json_orjson():
-    json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
-    env = {
-        'CONTENT_TYPE': 'application/json',
-        'wsgi.input': io.BytesIO(json_bytes),
-        'CONTENT_LENGTH': f'{len(json_bytes)}',
-    }
-    config = WsgiAppConfig()
-    config.json_deserializer = orjson.loads
-    r = Request(config, env)
-    assert r.json == {'A': 1, 'B': True, 'C': None, 'D': 0.1}
-
-
 def test_request_bad_json():
     json_bytes = b'{"A": 1, "D": 0.1}'[:-2]
     env = {
@@ -286,15 +271,6 @@ def test_response_conversion_dict():
     env = {'REQUEST_METHOD': 'GET'}
 
     json_response = (HTTPStatus.OK, (b'{"B": "blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '14'})
-    assert conf.result_handler(env, {'B': 'blaah'}) == json_response
-
-
-def test_response_conversion_dict_orjson():
-    conf = WsgiAppConfig()
-    conf.json_serializer = orjson.dumps
-    env = {'REQUEST_METHOD': 'GET'}
-
-    json_response = (HTTPStatus.OK, (b'{"B":"blaah"}',), {'Content-Type': 'application/json', 'Content-Length': '13'})
     assert conf.result_handler(env, {'B': 'blaah'}) == json_response
 
 

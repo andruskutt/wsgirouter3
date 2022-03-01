@@ -12,3 +12,6 @@ pytest==6.2.5
 pytest-cov==3.0.0
 # for testing different json serializer/deserializer
 orjson==3.6.5
+# for testing of bindings
+marshmallow==3.14.1
+pydantic==1.9.0

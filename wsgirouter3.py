@@ -188,7 +188,7 @@ class Request:
         sandbox = {k: self.environ[k] for k in _FORM_DECODE_ENVIRONMENT_KEYS}
         sandbox[_WSGI_REQUEST_METHOD_HEADER] = 'POST'
         try:
-            # PEP-594: cgi module will be removed in python 3.10 (status draft)
+            # PEP-594: cgi module will be removed in python 3.13
             # strict_parsing toggling: https://bugs.python.org/issue45874
             return cgi.FieldStorage(fp=io.BytesIO(self.body), environ=sandbox, strict_parsing=self.content_length > 0)
         except ValueError as e:

@@ -1,3 +1,10 @@
+## 0.6.1 (2022-03-26)
+
+## Features
+
+* added more typing info
+* binding tests/examples using marshmallow and pydantic
+
 ## 0.6.0 (2021-12-22)
 
 ### Features

@@ -3,11 +3,17 @@
 import io
 from http import HTTPStatus
 
-import orjson
+try:
+    import orjson
+except ImportError:
+    orjson = None
+
+import pytest
 
 from wsgirouter3 import Request, WsgiAppConfig
 
 
+@pytest.mark.skipif(orjson is None, reason='orjson not available')
 def test_request_json_orjson():
     json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
     env = {
@@ -21,6 +27,7 @@ def test_request_json_orjson():
     assert r.json == {'A': 1, 'B': True, 'C': None, 'D': 0.1}
 
 
+@pytest.mark.skipif(orjson is None, reason='orjson not available')
 def test_response_conversion_dict_orjson():
     conf = WsgiAppConfig()
     conf.json_serializer = orjson.dumps

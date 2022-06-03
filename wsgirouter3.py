@@ -714,7 +714,8 @@ class PathRouter:
         for path_segment in _split_route_path(route_path):
             if not path_segment:
                 raise ValueError(f'{route_path}: missing path segment')
-            elif path_segment.startswith(self.path_parameter_start):
+
+            if path_segment.startswith(self.path_parameter_start):
                 # path parameter definition
                 if signature is None or type_hints is None:
                     raise ValueError(f'{route_path}: parameters are not allowed')

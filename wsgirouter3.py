@@ -297,11 +297,11 @@ class WsgiAppConfig:
     def can_compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> bool:
         if self.compress_level != 0 and headers.get(_CONTENT_TYPE_HEADER) in self.compress_content_types:
             accepted_encoding = environ.get(_WSGI_ACCEPT_ENCODING_HEADER)
-            if _CONTENT_ENCODING_HEADER not in headers and accepted_encoding is not None:
-                if len(result) >= self.compress_min_response_length:
-                    for ae in accepted_encoding.split(','):
-                        if _parse_header_with_quality(ae.lstrip()) == _CONTENT_ENCODING_GZIP:
-                            return True
+            if accepted_encoding is not None and _CONTENT_ENCODING_HEADER not in headers \
+               and len(result) >= self.compress_min_response_length:
+                for ae in accepted_encoding.split(','):
+                    if _parse_header_with_quality(ae.lstrip()) == _CONTENT_ENCODING_GZIP:
+                        return True
         return False
 
     def compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> Iterable[bytes]:

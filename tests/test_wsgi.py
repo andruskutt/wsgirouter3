@@ -651,7 +651,7 @@ def test_wsgi_application_head_method():
     env = {'REQUEST_METHOD': 'HEAD', 'PATH_INFO': url}
     assert app(env, start_response) == (b'',)
     assert got_headers
-    assert any('Allow' == r[0] for r in got_headers)
+    assert any(r[0] == 'Allow' for r in got_headers)
 
     url = '/url/withhead'
     r.add_route(url, ('GET', 'HEAD'), lambda: {})

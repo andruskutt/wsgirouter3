@@ -90,7 +90,7 @@ class cached_property:  # noqa: N801
     """
     Cached property implementation.
 
-    Implementation without locking, see: https://bugs.python.org/issue43468
+    Implementation without locking, see: https://github.com/python/cpython/issues/87634
     """
 
     def __init__(self, func: Callable[[Any], Any]) -> None:
@@ -189,7 +189,7 @@ class Request:
         sandbox[_WSGI_REQUEST_METHOD_HEADER] = 'POST'
         try:
             # PEP-594: cgi module will be removed in python 3.13
-            # strict_parsing toggling: https://bugs.python.org/issue45874
+            # strict_parsing toggling: https://github.com/python/cpython/issues/90032
             return cgi.FieldStorage(fp=io.BytesIO(self.body), environ=sandbox, strict_parsing=self.content_length > 0)
         except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e

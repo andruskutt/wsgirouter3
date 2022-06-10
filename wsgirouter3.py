@@ -262,16 +262,18 @@ class WsgiAppConfig:
 
             result = _NO_DATA_RESULT
         elif isinstance(result, dict):
-            result = self.json_result_handler(environ, result, headers)
+            result = self.json_serializer(result)
+            headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
+            result = (self.compress_result(environ, result, headers),)
         elif isinstance(result, bytes):
             if _CONTENT_TYPE_HEADER not in headers:
                 raise ValueError('Unknown content type for binary result')
 
-            result = self.compress_result(environ, result, headers)
+            result = (self.compress_result(environ, result, headers),)
         elif isinstance(result, str):
             result = result.encode()
             headers.setdefault(_CONTENT_TYPE_HEADER, self.default_str_content_type)
-            result = self.compress_result(environ, result, headers)
+            result = (self.compress_result(environ, result, headers),)
         elif not isinstance(result, GeneratorType):
             result = self.custom_result_handler(environ, result, headers)
 
@@ -286,12 +288,9 @@ class WsgiAppConfig:
         if not is_dataclass(result):
             raise ValueError(f'Unknown result {result}')
 
-        return self.json_result_handler(environ, result, headers)
-
-    def json_result_handler(self, environ: WsgiEnviron, result: Any, headers: WsgiHeaders) -> Iterable[bytes]:
         response = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
-        return self.compress_result(environ, response, headers)
+        return (self.compress_result(environ, response, headers),)
 
     def can_compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> bool:
         if self.compress_level != 0 and headers.get(_CONTENT_TYPE_HEADER) in self.compress_content_types:
@@ -303,7 +302,7 @@ class WsgiAppConfig:
                         return True
         return False
 
-    def compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> Iterable[bytes]:
+    def compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> bytes:
         if self.can_compress_result(environ, result, headers):
             co = zlib.compressobj(level=self.compress_level, wbits=16 + zlib.MAX_WBITS)
             result = co.compress(result) + co.flush()
@@ -314,7 +313,7 @@ class WsgiAppConfig:
             headers[_VARY_HEADER] = vary
 
         headers[_CONTENT_LENGTH_HEADER] = str(len(result))
-        return (result,)
+        return result
 
     def error_handler(self, environ: WsgiEnviron, exc: Exception) -> Any:
         if not isinstance(exc, HTTPError):

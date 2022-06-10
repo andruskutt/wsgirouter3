@@ -233,7 +233,6 @@ class WsgiAppConfig:
         Tuple[Callable[[Any], bool], Callable[[Any, WsgiHeaders], Iterable[bytes]]]
     ] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
-    logger: Union[logging.Logger, logging.LoggerAdapter] = _logger
     max_request_content_length: Optional[int] = None
     compress_content_types = frozenset((_CONTENT_TYPE_APPLICATION_JSON,))
     compress_level = 2
@@ -319,7 +318,7 @@ class WsgiAppConfig:
 
     def error_handler(self, environ: WsgiEnviron, exc: Exception) -> Any:
         if not isinstance(exc, HTTPError):
-            self.logger.exception('Unhandled exception', exc_info=exc)
+            _logger.exception('Unhandled exception', exc_info=exc)
 
             exc = HTTPError(HTTPStatus.INTERNAL_SERVER_ERROR)
 

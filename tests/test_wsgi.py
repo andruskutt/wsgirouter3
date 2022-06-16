@@ -491,7 +491,7 @@ def test_response_compression():
 
     @router.get(url)
     def json_endpoint() -> dict:
-        return {'a': 1, 'b': 'x' * strlen}
+        return {'a': 1, 'b': secrets.token_hex(strlen)}
 
     app = WsgiApp(router)
     assert strlen >= app.config.compress_min_response_length

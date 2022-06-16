@@ -1,6 +1,17 @@
+## 0.7.0 (2022-06-16)
+
+### Features
+
+* removed WsgiAppConfig.logger configuration. Override error_handler to change unhandled exception logging behaviour
+* removed WsgiAppConfig.json_result_handler configuration
+
+### Refactoring
+
+* do not concatenate compressed result parts
+
 ## 0.6.1 (2022-03-26)
 
-## Features
+### Features
 
 * added more typing info
 * binding tests/examples using marshmallow and pydantic

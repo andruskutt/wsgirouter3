@@ -420,21 +420,35 @@ def test_path_parameter_defaults():
     def handler(str_param: str, int_param: int, bool_param: bool, **kwargs):
         pass
 
-    with pytest.raises(ValueError, match='cannot used as parameters'):
+    with pytest.raises(ValueError, match='missing cannot used as parameters'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'missing': 'not there'})
 
-    with pytest.raises(ValueError, match='cannot used as parameters'):
+    with pytest.raises(ValueError, match='missing cannot used as parameters'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'missing': 'not there',
                                                                             'int_param': 123})
 
-    with pytest.raises(ValueError, match='cannot used as parameters'):
+    with pytest.raises(ValueError, match='kwargs cannot used as parameters'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'kwargs': 'kwargs is filtered out'})
 
     with pytest.raises(ValueError, match='bool_param is not initialized'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string'})
 
+    with pytest.raises(ValueError, match='defaults str_param, int_param, bool_param are of incompatible type'):
+        r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': None, 'int_param': 'str',
+                                                                            'bool_param': 123})
+
     r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string',
                                                                         'bool_param': False})
+
+    def handler_with_opt(opt_str_param: Optional[str]):
+        pass
+
+    r.add_route('/optprefix/{opt_str_param}/path', methods, handler_with_opt, defaults={'opt_str_param': None})
+
+    r.add_route('/presentprefix/{opt_str_param}/path', methods, handler_with_opt, defaults={'opt_str_param': 'present'})
+
+    with pytest.raises(ValueError, match='defaults opt_str_param are of incompatible type'):
+        r.add_route('/invalidprefix/{opt_str_param}/path', methods, handler_with_opt, defaults={'opt_str_param': 123})
 
 
 def test_bad_query_binding_parameter():
@@ -506,7 +520,7 @@ def test_overlapping_path_segments():
 
     # route url, example request url, parameters from url, defaults
     paths = (
-        ('/prefix', None, {}, {'variable': None}),
+        ('/prefix', None, {}, {'variable': ''}),
         ('/prefix/literal', None, {}, {'variable': 'something'}),
         ('/prefix/literal2', None, {}, {'variable': 'sonethingelse'}),
         ('/prefix/{variable}', '/prefix/value', {'variable': 'value'}, None),

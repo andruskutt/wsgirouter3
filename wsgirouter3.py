@@ -647,10 +647,7 @@ class PathRouter:
         request_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Request)
 
         if defaults is not None:
-            compatible = {p.name for p in parameters if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
-            incompatible = frozenset(defaults) - compatible
-            if incompatible:
-                raise ValueError(f'{route_path}: defaults {", ".join(incompatible)} cannot used as parameters')
+            self.verify_defaults(route_path, defaults, parameters, type_hints)
 
         # check that all handler parameters are set or have default values
         required_parameters = {p.name for p in parameters
@@ -767,11 +764,7 @@ class PathRouter:
             raise ValueError(f'{route_path}: path parameter {parameter_name} missing type annotation')
 
         # unwrap possible Optional[x]/Union[x, None]
-        origin = get_origin(annotation)
-        if origin is Union:
-            union_args = [a for a in get_args(annotation) if a is not _NONE_TYPE]
-            if len(union_args) == 1:
-                annotation = union_args[0]
+        annotation = _unwrap_optional(annotation)
 
         try:
             factory = self.parameter_types[annotation]
@@ -807,6 +800,33 @@ class PathRouter:
 
         args = get_args(type_hints[binding_name])
         return (binding_name, binding_type if is_request_binding else args[0])
+
+    def verify_defaults(self,
+                        route_path: str,
+                        defaults: Dict[str, Any],
+                        parameters: List[inspect.Parameter],
+                        type_hints: Dict[str, Any]) -> None:
+        compatible = {p.name for p in parameters if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
+        incompatible = frozenset(defaults) - compatible
+        if incompatible:
+            raise ValueError(f'{route_path}: defaults {", ".join(incompatible)} cannot used as parameters')
+
+        # check defaults value types
+        wrong_type = []
+        for default_name, default_value in defaults.items():
+            annotation = type_hints.get(default_name)
+            if default_value is None:
+                if not (get_origin(annotation) is Union and [a for a in get_args(annotation) if a is _NONE_TYPE]):
+                    # None not supported
+                    wrong_type.append(default_name)
+            else:
+                annotation = _unwrap_optional(annotation)
+                if not isinstance(default_value, annotation):
+                    # value is of wring type
+                    wrong_type.append(default_name)
+
+        if wrong_type:
+            raise ValueError(f'{route_path}: defaults {", ".join(wrong_type)} are of incompatible type')
 
     def get_routes(self) -> Iterable[RouteDefinition]:
         def walk_children(path: List[Union[str, PathParameter]],
@@ -866,3 +886,13 @@ def _is_annotated_with(hints: Any, annotation: Any) -> bool:
 
     args = get_args(hints)
     return len(args) >= 2 and not isinstance(args[0], TypeVar) and annotation in args[1:]
+
+
+def _unwrap_optional(annotation: Any) -> Any:
+    origin = get_origin(annotation)
+    if origin is Union:
+        union_args = [a for a in get_args(annotation) if a is not _NONE_TYPE]
+        if len(union_args) == 1:
+            return union_args[0]
+
+    return annotation

@@ -5,7 +5,7 @@ from typing import Optional
 
 import pytest
 
-from wsgirouter3 import Body, MethodNotAllowedError, NotFoundError, PathParameter, PathRouter, Query, Request
+from wsgirouter3 import Annotated, Body, MethodNotAllowedError, NotFoundError, PathParameter, PathRouter, Query, Request
 
 
 def test_str_routes():
@@ -433,12 +433,17 @@ def test_path_parameter_defaults():
     with pytest.raises(ValueError, match='bool_param is not initialized'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string'})
 
-    with pytest.raises(ValueError, match='defaults str_param, int_param, bool_param are of incompatible type'):
+    with pytest.raises(ValueError, match='defaults str_param, int_param, bool_param: incompatible types'):
         r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': None, 'int_param': 'str',
                                                                             'bool_param': 123})
 
     r.add_route('/prefix/{int_param}/path', methods, handler, defaults={'str_param': 'this is a string',
                                                                         'bool_param': False})
+
+
+def test_path_parameter_defaults_optional():
+    r = PathRouter()
+    methods = ('GET',)
 
     def handler_with_opt(opt_str_param: Optional[str]):
         pass
@@ -447,8 +452,24 @@ def test_path_parameter_defaults():
 
     r.add_route('/presentprefix/{opt_str_param}/path', methods, handler_with_opt, defaults={'opt_str_param': 'present'})
 
-    with pytest.raises(ValueError, match='defaults opt_str_param are of incompatible type'):
+    with pytest.raises(ValueError, match='defaults opt_str_param: incompatible type'):
         r.add_route('/invalidprefix/{opt_str_param}/path', methods, handler_with_opt, defaults={'opt_str_param': 123})
+
+
+def test_path_parameter_defaults_annotated():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def handler_with_annotated(data: Annotated[dict, 'abc', 123]):
+        pass
+
+    r.add_route('/prefix/path', methods, handler_with_annotated, defaults={'data': {}})
+
+    with pytest.raises(ValueError, match='parameter data is not initialized'):
+        r.add_route('/anotherprefix/path', methods, handler_with_annotated)
+
+    with pytest.raises(ValueError, match='defaults data: incompatible type'):
+        r.add_route('/anotherprefix/path', methods, handler_with_annotated, defaults={'data': None})
 
 
 def test_bad_query_binding_parameter():

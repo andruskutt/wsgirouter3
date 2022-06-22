@@ -820,13 +820,19 @@ class PathRouter:
                     # None not supported
                     wrong_type.append(default_name)
             else:
+                if get_origin(annotation) is Annotated:
+                    annotation = get_args(annotation)[0]
+
                 annotation = _unwrap_optional(annotation)
                 if not isinstance(default_value, annotation):
                     # value is of wring type
                     wrong_type.append(default_name)
 
         if wrong_type:
-            raise ValueError(f'{route_path}: defaults {", ".join(wrong_type)} are of incompatible type')
+            plural = len(wrong_type) > 1
+            raise ValueError(
+                f'{route_path}: defaults {", ".join(wrong_type)}: incompatible type{"s" if plural else ""}'
+            )
 
     def get_routes(self) -> Iterable[RouteDefinition]:
         def walk_children(path: List[Union[str, PathParameter]],

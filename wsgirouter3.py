@@ -647,7 +647,7 @@ class PathRouter:
         request_binding = self.get_binding_parameter(route_path, parameter_names, parameters, type_hints, Request)
 
         if defaults is not None:
-            self.verify_defaults(route_path, defaults, parameters, type_hints)
+            self.verify_defaults(route_path, parameter_names, defaults, parameters, type_hints)
 
         # check that all handler parameters are set or have default values
         required_parameters = {p.name for p in parameters
@@ -803,9 +803,14 @@ class PathRouter:
 
     def verify_defaults(self,
                         route_path: str,
+                        parameter_names: Set[str],
                         defaults: Dict[str, Any],
                         parameters: List[inspect.Parameter],
                         type_hints: Dict[str, Any]) -> None:
+        unused = parameter_names.intersection(defaults)
+        if unused:
+            raise ValueError(f'{route_path}: defaults {", ".join(unused)} not used')
+
         compatible = {p.name for p in parameters if p.kind in _SIGNATURE_ALLOWED_PARAMETER_KINDS}
         incompatible = frozenset(defaults) - compatible
         if incompatible:

@@ -155,6 +155,17 @@ def test_uuid_routes():
         r(environ)
 
 
+def test_annotated_routes():
+    r = PathRouter()
+    methods = ('GET',)
+
+    def handler(uid: Annotated[uuid.UUID, 'something']):
+        pass
+
+    r.add_route('/{uid}', methods, handler)
+    r.add_route('/{uid}/subpath', methods, handler)
+
+
 def test_bad_path_parameter_implementation():
     r = PathRouter()
 

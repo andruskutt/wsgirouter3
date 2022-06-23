@@ -763,8 +763,7 @@ class PathRouter:
         if annotation is None:
             raise ValueError(f'{route_path}: path parameter {parameter_name} missing type annotation')
 
-        # unwrap possible Optional[x]/Union[x, None]
-        annotation = _unwrap_optional(annotation)
+        annotation = _unwrap_type_annotation(annotation)
 
         try:
             factory = self.parameter_types[annotation]
@@ -825,10 +824,7 @@ class PathRouter:
                     # None not supported
                     wrong_type.append(default_name)
             else:
-                if get_origin(annotation) is Annotated:
-                    annotation = get_args(annotation)[0]
-
-                annotation = _unwrap_optional(annotation)
+                annotation = _unwrap_type_annotation(annotation)
                 if not isinstance(default_value, annotation):
                     # value is of wring type
                     wrong_type.append(default_name)
@@ -899,7 +895,10 @@ def _is_annotated_with(hints: Any, annotation: Any) -> bool:
     return len(args) >= 2 and not isinstance(args[0], TypeVar) and annotation in args[1:]
 
 
-def _unwrap_optional(annotation: Any) -> Any:
+def _unwrap_type_annotation(annotation: Any) -> Any:
+    if get_origin(annotation) is Annotated:
+        annotation = get_args(annotation)[0]
+
     origin = get_origin(annotation)
     if origin is Union:
         union_args = [a for a in get_args(annotation) if a is not _NONE_TYPE]

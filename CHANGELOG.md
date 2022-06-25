@@ -1,3 +1,11 @@
+## 0.7.1 (2022-06-25)
+
+### Features
+
+* defaults for handler parameters are type-checked
+* defaults are only allowed for handler parameters which do not get values from path/query string/body
+* handler parameter types can wrapped with Annotated
+
 ## 0.7.0 (2022-06-16)
 
 ### Features

@@ -19,10 +19,12 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple, Type, TypeVar, Union
 if sys.version_info >= (3, 9):
+    from collections.abc import Callable, Iterable, Mapping
     from typing import get_args, get_origin, get_type_hints, Annotated, Final
 else:  # pragma: no cover
+    from typing import Callable, Iterable, Mapping
     # Final is supported starting from 3.8
     from typing_extensions import get_args, get_origin, get_type_hints, Annotated, Final
 from urllib.parse import parse_qsl
@@ -418,7 +420,7 @@ class Endpoint:
     )
 
     def __init__(self, handler: Callable[..., Any],
-                 defaults: Optional[Dict[str, Any]], options: Any,
+                 defaults: Optional[Mapping[str, Any]], options: Any,
                  consumes: Union[str, Iterable[str], None], produces: Optional[str],
                  query_binding: Optional[Tuple[str, Any]],
                  body_binding: Optional[Tuple[str, Any]],
@@ -606,7 +608,7 @@ class PathRouter:
     def route(self,
               route_path: str,
               methods: Iterable[str],
-              defaults: Optional[Dict[str, Any]] = None,
+              defaults: Optional[Mapping[str, Any]] = None,
               options: Any = None,
               consumes: Union[str, Iterable[str], None] = None,
               produces: Optional[str] = None) -> Callable[[F], F]:
@@ -626,7 +628,7 @@ class PathRouter:
                   route_path: str,
                   methods: Iterable[str],
                   handler: Callable[..., Any],
-                  defaults: Optional[Dict[str, Any]] = None,
+                  defaults: Optional[Mapping[str, Any]] = None,
                   options: Any = None,
                   consumes: Union[str, Iterable[str], None] = None,
                   produces: Optional[str] = None) -> None:
@@ -704,7 +706,7 @@ class PathRouter:
     def parse_route_path(self,
                          route_path: str,
                          signature: Optional[inspect.Signature],
-                         type_hints: Optional[Dict[str, Any]]) -> Tuple[PathEntry, Set[str]]:
+                         type_hints: Optional[Mapping[str, Any]]) -> Tuple[PathEntry, Set[str]]:
         entry = self.root
         parameter_names: Set[str] = set()
 
@@ -745,7 +747,7 @@ class PathRouter:
                         parameter: str,
                         route_path: str,
                         signature: inspect.Signature,
-                        type_hints: Dict[str, Any]) -> Tuple[Type[PathParameter], str]:
+                        type_hints: Mapping[str, Any]) -> Tuple[Type[PathParameter], str]:
         suffix_length = -len(self.path_parameter_end) if self.path_parameter_end else None
         parameter_name = parameter[len(self.path_parameter_start):suffix_length]
         if not parameter_name or (self.path_parameter_end and not parameter.endswith(self.path_parameter_end)):
@@ -776,7 +778,7 @@ class PathRouter:
                               route_path: str,
                               parameter_names: Set[str],
                               parameters: List[inspect.Parameter],
-                              type_hints: Dict[str, Any],
+                              type_hints: Mapping[str, Any],
                               binding_type: Any) -> Optional[Tuple[str, Any]]:
         is_request_binding = binding_type is Request
         if is_request_binding:
@@ -803,9 +805,9 @@ class PathRouter:
     def verify_defaults(self,
                         route_path: str,
                         parameter_names: Set[str],
-                        defaults: Dict[str, Any],
+                        defaults: Mapping[str, Any],
                         parameters: List[inspect.Parameter],
-                        type_hints: Dict[str, Any]) -> None:
+                        type_hints: Mapping[str, Any]) -> None:
         unused = parameter_names.intersection(defaults)
         if unused:
             raise ValueError(f'{route_path}: defaults {", ".join(unused)} not used')

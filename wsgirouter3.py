@@ -43,7 +43,10 @@ _CONTENT_TYPE_HEADER: Final = 'Content-Type'
 _CONTENT_TYPE_APPLICATION_JSON: Final = 'application/json'
 _CONTENT_TYPE_MULTIPART_FORM_DATA: Final = 'multipart/form-data'
 _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: Final = 'application/x-www-form-urlencoded'
+_ETAG_HEADER: Final = 'ETag'
 _VARY_HEADER: Final = 'Vary'
+
+_WEAK_VALIDATOR_PREFIX = 'W/'
 
 _WSGI_ACCEPT_ENCODING_HEADER: Final = 'HTTP_ACCEPT_ENCODING'
 _WSGI_ACCEPT_HEADER: Final = 'HTTP_ACCEPT'
@@ -313,6 +316,11 @@ class WsgiAppConfig:
             headers[_CONTENT_ENCODING_HEADER] = _CONTENT_ENCODING_GZIP
             vary = headers.get(_VARY_HEADER)
             headers[_VARY_HEADER] = _ACCEPT_ENCODING_HEADER if vary is None else f'{vary},{_ACCEPT_ENCODING_HEADER}'
+
+            etag = headers.get(_ETAG_HEADER)
+            if etag and etag[0] == '"':
+                # https://datatracker.ietf.org/doc/html/rfc9110#section-8.8.3
+                headers[_ETAG_HEADER] = _WEAK_VALIDATOR_PREFIX + etag
 
             tail_length = len(result_tail)
             if tail_length > 0:

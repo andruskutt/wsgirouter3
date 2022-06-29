@@ -525,6 +525,33 @@ def test_response_compression():
     assert headers.get('Vary') is None
 
 
+def test_response_compression_with_etag():
+    url = '/url'
+    router = PathRouter()
+    strlen = 1000
+
+    etag = '"abc"'
+
+    @router.get(url)
+    def json_endpoint() -> dict:
+        return 200, {'a': 1, 'b': secrets.token_hex(strlen)}, {'ETag': etag}
+
+    app = WsgiApp(router)
+    assert strlen >= app.config.compress_min_response_length
+
+    headers = {}
+
+    def start_response(status, hdrs):
+        headers.update(hdrs)
+
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url, 'HTTP_ACCEPT_ENCODING': 'deflate, gzip;q=1.0, *;q=0.5'}
+    result = b''.join(app(env, start_response))
+    assert len(result) == int(headers.get('Content-Length'))
+    assert headers.get('Content-Encoding') == 'gzip'
+    assert headers.get('Vary') == 'Accept-Encoding'
+    assert headers.get('ETag') == 'W/' + etag
+
+
 def test_hooks():
     url = '/url'
 

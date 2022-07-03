@@ -1,3 +1,10 @@
+## 0.7.2 (2022-07-03)
+
+### Features
+
+* ETag handling (strong -> weak) for compressed responses
+* changed typing info for readonly dicts to Mapping
+
 ## 0.7.1 (2022-06-25)
 
 ### Features

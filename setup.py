@@ -32,6 +32,7 @@ setup(
     ],
     keywords='web services',
     author='Andrus Kütt',
+    author_email='andrus.kuett@gmail.com',
     url='https://github.com/andruskutt/wsgirouter3',
     license='MIT',
     py_modules=['wsgirouter3'],

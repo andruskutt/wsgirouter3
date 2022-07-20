@@ -293,9 +293,9 @@ class WsgiAppConfig:
         if not is_dataclass(result):
             raise ValueError(f'Unknown result {result}')
 
-        response = self.json_serializer(result)
+        result = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)
-        return self.compress_result(environ, response, headers)
+        return self.compress_result(environ, result, headers)
 
     def can_compress_result(self, environ: WsgiEnviron, result: bytes, headers: WsgiHeaders) -> bool:
         if self.compress_level != 0 and headers.get(_CONTENT_TYPE_HEADER) in self.compress_content_types:

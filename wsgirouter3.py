@@ -291,7 +291,7 @@ class WsgiAppConfig:
 
         # dataclass is json if not overridden by custom converter
         if not is_dataclass(result):
-            raise ValueError(f'Unknown result {result}')
+            raise ValueError(f'Unknown result type: {type(result)}')
 
         result = self.json_serializer(result)
         headers.setdefault(_CONTENT_TYPE_HEADER, _CONTENT_TYPE_APPLICATION_JSON)

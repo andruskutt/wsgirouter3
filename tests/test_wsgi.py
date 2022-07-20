@@ -326,7 +326,7 @@ def test_response_conversion_invalid():
     with pytest.raises(ValueError, match='Unknown content type for binary result'):
         conf.result_handler(env, b'1234')
 
-    with pytest.raises(ValueError, match='Unknown result'):
+    with pytest.raises(ValueError, match="Unknown result type: <class 'bool'>"):
         conf.result_handler(env, True)
 
 

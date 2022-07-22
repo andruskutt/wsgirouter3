@@ -12,7 +12,7 @@ from http import HTTPStatus
 import pytest
 
 import wsgirouter3
-from wsgirouter3 import Body, HTTPError, PathRouter, Query, Request, WsgiApp, WsgiAppConfig
+from wsgirouter3 import Body, CacheControl, HTTPError, PathRouter, Query, Request, WsgiApp, WsgiAppConfig
 
 
 class JSONDecoder(json.JSONDecoder):
@@ -550,6 +550,41 @@ def test_response_compression_with_etag():
     assert headers.get('Content-Encoding') == 'gzip'
     assert headers.get('Vary') == 'Accept-Encoding'
     assert headers.get('ETag') == 'W/' + etag
+
+
+def test_response_cache_control():
+    no_store_url = '/no-store'
+    store_url = '/store'
+    router = PathRouter()
+
+    @router.get(no_store_url, cache_control=CacheControl.no_store)
+    def no_store_endpoint() -> dict:
+        return {'a': 1, 'b': 'c'}
+
+    @router.get(store_url, cache_control=CacheControl.of(100))
+    def store_endpoint() -> dict:
+        return {'a': 1, 'b': 'c'}
+
+    app = WsgiApp(router)
+
+    headers = {}
+
+    def start_response(status, hdrs):
+        headers.update(hdrs)
+
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': no_store_url}
+    app(env, start_response)
+    assert headers.get('Cache-Control') == 'no-store'
+
+    headers = {}
+    env = {'REQUEST_METHOD': 'GET', 'PATH_INFO': store_url}
+    app(env, start_response)
+    assert headers.get('Cache-Control') == 'max-age=100, immutable, private'
+
+
+def test_invalid_response_cache_control():
+    with pytest.raises(ValueError, match='Invalid max_age=-100'):
+        CacheControl.of(max_age=-100)
 
 
 def test_hooks():

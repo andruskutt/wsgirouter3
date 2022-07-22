@@ -33,7 +33,7 @@ from uuid import UUID
 __all__ = [
     'HTTPError', 'MethodNotAllowedError', 'NotFoundError',
     'PathRouter', 'PathParameter', 'RouteDefinition',
-    'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body',
+    'Request', 'WsgiApp', 'WsgiAppConfig', 'Query', 'Body', 'CacheControl',
 ]
 
 _ACCEPT_ENCODING_HEADER: Final = 'Accept-Encoding'
@@ -365,9 +365,12 @@ class WsgiApp:
         self.config = config or WsgiAppConfig()
 
     def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, List[tuple]], Any]) -> Iterable[bytes]:
+        cache_control = None
+
         try:
             endpoint, path_parameters = self.router(environ)
             environ[self.route_options_key] = endpoint.options
+            cache_control = endpoint.cache_control
 
             request = self.config.request_factory(environ)
             before_request = self.config.before_request
@@ -383,6 +386,9 @@ class WsgiApp:
 
         # XXX error handling for result conversion and after request hook
         status, result, response_headers = self.config.result_handler(environ, result)
+
+        if cache_control is not None:
+            cache_control.apply(status, response_headers)
 
         after_request = self.config.after_request
         if after_request is not None:
@@ -421,10 +427,38 @@ class WsgiApp:
         return kwargs
 
 
+class CacheControl:
+    __slots__ = ('cache_control_header',)
+
+    no_store: 'CacheControl'
+
+    def __init__(self, cache_control_header: str) -> None:
+        self.cache_control_header = cache_control_header
+
+    def apply(self, status: int, response_headers: WsgiHeaders) -> None:
+        if 200 <= status < 400:
+            response_headers['Cache-Control'] = self.cache_control_header
+
+    @staticmethod
+    def of(max_age: int, immutable: bool = True, private: bool = True) -> 'CacheControl':
+        if max_age < 0:
+            raise ValueError(f'Invalid max_age={max_age}')
+
+        parameters = [f'max-age={int(max_age)}']
+        if immutable:
+            parameters.append('immutable')
+        if private:
+            parameters.append('private')
+        return CacheControl(', '.join(parameters))
+
+
+CacheControl.no_store = CacheControl('no-store')
+
+
 class Endpoint:
     __slots__ = (
         'handler', 'defaults', 'options', 'consumes', 'produces',
-        'query_binding', 'body_binding', 'request_binding'
+        'query_binding', 'body_binding', 'request_binding', 'cache_control'
     )
 
     def __init__(self, handler: Callable[..., Any],
@@ -432,7 +466,8 @@ class Endpoint:
                  consumes: Union[str, Iterable[str], None], produces: Optional[str],
                  query_binding: Optional[Tuple[str, Any]],
                  body_binding: Optional[Tuple[str, Any]],
-                 request_binding: Optional[Tuple[str, Any]]) -> None:
+                 request_binding: Optional[Tuple[str, Any]],
+                 cache_control: Optional[CacheControl]) -> None:
         self.handler = handler
         self.defaults = dict(defaults) if defaults else None
         self.options = options
@@ -444,6 +479,7 @@ class Endpoint:
         self.query_binding = query_binding
         self.body_binding = body_binding
         self.request_binding = request_binding
+        self.cache_control = cache_control
 
 
 class PathEntry:
@@ -619,9 +655,10 @@ class PathRouter:
               defaults: Optional[Mapping[str, Any]] = None,
               options: Any = None,
               consumes: Union[str, Iterable[str], None] = None,
-              produces: Optional[str] = None) -> Callable[[F], F]:
+              produces: Optional[str] = None,
+              cache_control: Optional[CacheControl] = None) -> Callable[[F], F]:
         def wrapper(handler: F) -> F:
-            self.add_route(route_path, methods, handler, defaults, options, consumes, produces)
+            self.add_route(route_path, methods, handler, defaults, options, consumes, produces, cache_control)
             return handler
 
         return wrapper
@@ -639,7 +676,8 @@ class PathRouter:
                   defaults: Optional[Mapping[str, Any]] = None,
                   options: Any = None,
                   consumes: Union[str, Iterable[str], None] = None,
-                  produces: Optional[str] = None) -> None:
+                  produces: Optional[str] = None,
+                  cache_control: Optional[CacheControl] = None) -> None:
         if not (route_path and route_path.startswith(_PATH_SEPARATOR)):
             raise ValueError(f'Route path must start with {_PATH_SEPARATOR}')
         if not methods:
@@ -688,7 +726,8 @@ class PathRouter:
             produces,
             query_binding,
             body_binding,
-            request_binding
+            request_binding,
+            cache_control
         )
         entry.add_endpoint(methods, endpoint)
         if not contains_path_parameters:

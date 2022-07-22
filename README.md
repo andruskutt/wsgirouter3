@@ -74,6 +74,18 @@ Handler return type handling:
 | dataclass | application/json, but overridable by custom result handler |
 | typing.GeneratorType | passed as is |
 
+Cache control for responses:
+
+```python
+@router.get('/no-store', cache_control=CacheControl.no_store)
+def no_store() -> dict:
+    return {'a': 1}
+
+@router.get('/store', cache_control=CacheControl.of(max_age=600, private=False))
+def store() -> dict:
+    return {'a': 1}
+```
+
 ## Configuration checklist
 
 WsgiAppConfig class

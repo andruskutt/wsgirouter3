@@ -1,3 +1,9 @@
+## 0.8.0 (2022-07-22)
+
+### Features
+
+* Cache-Control header support for responses
+
 ## 0.7.2 (2022-07-03)
 
 ### Features

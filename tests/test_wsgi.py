@@ -582,6 +582,12 @@ def test_response_cache_control():
     assert headers.get('Cache-Control') == 'max-age=100, immutable, private'
 
 
+def test_response_cache_control_arguments():
+    assert CacheControl.of(max_age=100).cache_control_header == 'max-age=100, immutable, private'
+    cc = CacheControl.of(max_age=100, private=False, public=True)
+    assert cc.cache_control_header == 'max-age=100, immutable, public'
+
+
 def test_invalid_response_cache_control():
     with pytest.raises(ValueError, match='Invalid max_age=-100'):
         CacheControl.of(max_age=-100)

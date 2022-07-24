@@ -440,7 +440,7 @@ class CacheControl:
             response_headers['Cache-Control'] = self.cache_control_header
 
     @staticmethod
-    def of(max_age: int, immutable: bool = True, private: bool = True) -> 'CacheControl':
+    def of(max_age: int, *, immutable: bool = True, private: bool = True, public: bool = False) -> 'CacheControl':
         if max_age < 0:
             raise ValueError(f'Invalid max_age={max_age}')
 
@@ -449,6 +449,8 @@ class CacheControl:
             parameters.append('immutable')
         if private:
             parameters.append('private')
+        if public:
+            parameters.append('public')
         return CacheControl(', '.join(parameters))
 
 

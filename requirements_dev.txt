@@ -12,7 +12,7 @@ dlint==0.12.0
 pytest==7.1.2
 pytest-cov==3.0.0
 # for testing different json serializer/deserializer
-orjson==3.7.5
+orjson==3.7.8; implementation_name=="cpython"
 # for testing of bindings
 marshmallow==3.17.0
 pydantic==1.9.1

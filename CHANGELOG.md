@@ -1,3 +1,10 @@
+## 0.8.1 (2022-08-03)
+
+### Features
+
+* Cache-Control public directive support for responses
+* pypy3 supported
+
 ## 0.8.0 (2022-07-22)
 
 ### Features

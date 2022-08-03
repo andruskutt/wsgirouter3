@@ -13,7 +13,7 @@ with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), 'r', enco
 
 setup(
     name='wsgirouter3',
-    version='0.8.0',
+    version='0.8.1',
     description='WSGI routing library',
     long_description=readme,
     long_description_content_type='text/markdown',
@@ -22,7 +22,10 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: PyPy',
         'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',

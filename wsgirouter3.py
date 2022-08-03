@@ -388,7 +388,7 @@ class WsgiApp:
         status, result, response_headers = self.config.result_handler(environ, result)
 
         if cache_control is not None:
-            cache_control.apply(status, response_headers)
+            cache_control.apply(status, response_headers, environ)
 
         after_request = self.config.after_request
         if after_request is not None:
@@ -435,7 +435,7 @@ class CacheControl:
     def __init__(self, cache_control_header: str) -> None:
         self.cache_control_header = cache_control_header
 
-    def apply(self, status: int, response_headers: WsgiHeaders) -> None:
+    def apply(self, status: int, response_headers: WsgiHeaders, environ: WsgiEnviron) -> None:
         if 200 <= status < 400:
             response_headers['Cache-Control'] = self.cache_control_header
 

@@ -182,7 +182,7 @@ class Request:
 
         return self.environ['wsgi.input'].read(content_length)
 
-    @cached_property
+    @property
     def form(self) -> cgi.FieldStorage:
         if self.content_type not in _FORM_CONTENT_TYPES:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
@@ -199,7 +199,7 @@ class Request:
         except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
-    @cached_property
+    @property
     def json(self) -> Any:
         if self.content_type != _CONTENT_TYPE_APPLICATION_JSON:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
@@ -209,7 +209,7 @@ class Request:
         except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
-    @cached_property
+    @property
     def query_parameters(self) -> Dict[str, str]:
         qs = self.environ.get(_WSGI_QUERY_STRING_HEADER)
         if not qs:
@@ -225,7 +225,7 @@ class Request:
         except ValueError as e:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
-    @cached_property
+    @property
     def method(self) -> str:
         return self.environ[_WSGI_REQUEST_METHOD_HEADER]
 

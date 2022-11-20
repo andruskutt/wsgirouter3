@@ -6,10 +6,8 @@ Homepage: https://github.com/andruskutt/wsgirouter3
 License: MIT
 """
 
-import cgi
 import functools
 import inspect
-import io
 import json
 import logging
 import re
@@ -41,7 +39,6 @@ _CONTENT_ENCODING_HEADER: Final = 'Content-Encoding'
 _CONTENT_LENGTH_HEADER: Final = 'Content-Length'
 _CONTENT_TYPE_HEADER: Final = 'Content-Type'
 _CONTENT_TYPE_APPLICATION_JSON: Final = 'application/json'
-_CONTENT_TYPE_MULTIPART_FORM_DATA: Final = 'multipart/form-data'
 _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: Final = 'application/x-www-form-urlencoded'
 _ETAG_HEADER: Final = 'ETag'
 _VARY_HEADER: Final = 'Vary'
@@ -55,9 +52,6 @@ _WSGI_CONTENT_TYPE_HEADER: Final = 'CONTENT_TYPE'
 _WSGI_PATH_INFO_HEADER: Final = 'PATH_INFO'
 _WSGI_QUERY_STRING_HEADER: Final = 'QUERY_STRING'
 _WSGI_REQUEST_METHOD_HEADER: Final = 'REQUEST_METHOD'
-
-_FORM_CONTENT_TYPES: Final = {_CONTENT_TYPE_MULTIPART_FORM_DATA, _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED}
-_FORM_DECODE_ENVIRONMENT_KEYS: Final = {_WSGI_CONTENT_LENGTH_HEADER, _WSGI_CONTENT_TYPE_HEADER}
 
 _NO_DATA_BODY: Final = b''
 _NO_DATA_RESULT: Final = (_NO_DATA_BODY,)
@@ -183,21 +177,13 @@ class Request:
         return self.environ['wsgi.input'].read(content_length)
 
     @property
-    def form(self) -> cgi.FieldStorage:
-        if self.content_type not in _FORM_CONTENT_TYPES:
+    def form(self) -> Dict[str, str]:
+        if self.content_type != _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
-        if not _FORM_DECODE_ENVIRONMENT_KEYS.issubset(self.environ):
-            raise HTTPError(HTTPStatus.BAD_REQUEST)
-
-        sandbox = {k: self.environ[k] for k in _FORM_DECODE_ENVIRONMENT_KEYS}
-        sandbox[_WSGI_REQUEST_METHOD_HEADER] = 'POST'
-        try:
-            # PEP-594: cgi module will be removed in python 3.13
-            # strict_parsing toggling: https://github.com/python/cpython/issues/90032
-            return cgi.FieldStorage(fp=io.BytesIO(self.body), environ=sandbox, strict_parsing=self.content_length > 0)
-        except ValueError as e:
-            raise HTTPError(HTTPStatus.BAD_REQUEST) from e
+        body = self.body
+        # XXX use charset from request
+        return _decode_url_encoded(body.decode('utf-8'))
 
     @property
     def json(self) -> Any:
@@ -212,18 +198,7 @@ class Request:
     @property
     def query_parameters(self) -> Dict[str, str]:
         qs = self.environ.get(_WSGI_QUERY_STRING_HEADER)
-        if not qs:
-            return {}
-
-        try:
-            data = {}
-            # XXX return single/first value for each parameter only
-            for name, value in parse_qsl(qs, strict_parsing=True):
-                if name not in data:
-                    data[name] = value
-            return data
-        except ValueError as e:
-            raise HTTPError(HTTPStatus.BAD_REQUEST) from e
+        return _decode_url_encoded(qs)
 
     @property
     def method(self) -> str:
@@ -936,6 +911,21 @@ def _parse_header_with_quality(header: str) -> Optional[str]:
 def _split_route_path(route_path: str) -> List[str]:
     path_segments = route_path.split(_PATH_SEPARATOR)
     return path_segments[1:] if route_path.startswith(_PATH_SEPARATOR) else path_segments
+
+
+def _decode_url_encoded(url: Optional[str]) -> Dict[str, str]:
+    if not url:
+        return {}
+
+    try:
+        data = {}
+        # XXX return single/first value for each parameter only
+        for name, value in parse_qsl(url, strict_parsing=True):
+            if name not in data:
+                data[name] = value
+        return data
+    except ValueError as e:
+        raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
 
 def _is_annotated_with(hints: Any, annotation: Any) -> bool:

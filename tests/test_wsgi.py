@@ -1,6 +1,5 @@
 """Tests for WSGI functionality."""
 
-import cgi
 import dataclasses
 import decimal
 import functools
@@ -106,46 +105,6 @@ def test_request_body():
     assert r.body == b''
 
 
-def test_request_form_multipart_form_data():
-    conf = WsgiAppConfig()
-    boundary = secrets.token_hex(16)
-    field_name = 'field'
-    field_def = f'Content-Disposition: form-data; name="{field_name}"'
-    field_val = 'FieldValue'
-    form_bytes = f'--{boundary}\r\n{field_def}\r\n\r\n{field_val}\r\n'.encode()
-    env = {
-        'REQUEST_METHOD': 'POST',
-        'CONTENT_TYPE': f'multipart/form-data; boundary={boundary}',
-        'wsgi.input': io.BytesIO(form_bytes),
-        'CONTENT_LENGTH': f'{len(form_bytes)}',
-    }
-
-    r = Request(conf, env)
-    assert r.content_length == len(form_bytes)
-    form_data = r.form
-    assert isinstance(form_data, cgi.FieldStorage)
-    assert form_data.keys() == [field_name]
-    assert form_data.getfirst(field_name) == field_val
-
-
-def test_request_empty_form_multipart_form_data():
-    conf = WsgiAppConfig()
-    boundary = secrets.token_hex(16)
-    form_bytes = f'--{boundary}--\r\n'.encode()
-    env = {
-        'REQUEST_METHOD': 'POST',
-        'CONTENT_TYPE': f'multipart/form-data; boundary={boundary}',
-        'wsgi.input': io.BytesIO(form_bytes),
-        'CONTENT_LENGTH': f'{len(form_bytes)}',
-    }
-
-    r = Request(conf, env)
-    assert r.content_length == len(form_bytes)
-    form_data = r.form
-    assert isinstance(form_data, cgi.FieldStorage)
-    assert form_data.keys() == []
-
-
 def test_request_form_urlencoded():
     conf = WsgiAppConfig()
     field_name = 'field'
@@ -161,9 +120,9 @@ def test_request_form_urlencoded():
     r = Request(conf, env)
     assert r.content_length == len(form_bytes)
     form_data = r.form
-    assert isinstance(form_data, cgi.FieldStorage)
-    assert form_data.keys() == [field_name]
-    assert form_data.getfirst(field_name) == field_val
+    assert isinstance(form_data, dict)
+    assert [*form_data.keys()] == [field_name]
+    assert form_data[field_name] == field_val
 
 
 def test_request_empty_form_urlencoded():
@@ -179,8 +138,8 @@ def test_request_empty_form_urlencoded():
     r = Request(conf, env)
     assert r.content_length == len(form_bytes)
     form_data = r.form
-    assert isinstance(form_data, cgi.FieldStorage)
-    assert form_data.keys() == []
+    assert isinstance(form_data, dict)
+    assert [*form_data.keys()] == []
 
 
 def test_request_bad_form():
@@ -193,23 +152,6 @@ def test_request_bad_form():
     with pytest.raises(HTTPError) as exc_info:
         Request(conf, env).form
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
-
-    boundary = secrets.token_hex(16)
-    env['CONTENT_TYPE'] = f'multipart/form-data; boundary={boundary}'
-    # missing content length
-    with pytest.raises(HTTPError) as exc_info:
-        Request(conf, env).form
-    assert exc_info.value.args[0] == HTTPStatus.BAD_REQUEST
-
-    boundary = secrets.token_hex(16) + 'Ä'
-    form_bytes = f'--{boundary}--\r\n'.encode()
-    env['CONTENT_TYPE'] = f'multipart/form-data; boundary={boundary}'
-    env['CONTENT_LENGTH'] = f'{len(form_bytes)}'
-    env['wsgi.input'] = io.BytesIO(form_bytes)
-    # bad boundary symbol
-    with pytest.raises(HTTPError) as exc_info:
-        Request(conf, env).form
-    assert exc_info.value.args[0] == HTTPStatus.BAD_REQUEST
 
 
 def test_request_json():
@@ -796,12 +738,11 @@ def test_body_binding_json():
 
 def test_body_binding_form():
     url = '/url'
-    boundary = secrets.token_hex(16)
-    form_bytes = f'--{boundary}--\r\n'.encode()
+    form_bytes = b''
     env = {
         'REQUEST_METHOD': 'POST',
         'PATH_INFO': url,
-        'CONTENT_TYPE': f'multipart/form-data; boundary={boundary}',
+        'CONTENT_TYPE': 'application/x-www-form-urlencoded',
         'wsgi.input': io.BytesIO(form_bytes),
         'CONTENT_LENGTH': f'{len(form_bytes)}',
     }
@@ -809,8 +750,8 @@ def test_body_binding_form():
     router = PathRouter()
 
     @router.post(url)
-    def endpoint(body: Body[cgi.FieldStorage]) -> dict:
-        return {key: body.getfirst(key) for key in body.keys()}
+    def endpoint(body: Body[dict]) -> dict:
+        return {**body}
 
     app = WsgiApp(router)
 

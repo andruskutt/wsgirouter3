@@ -1,19 +1,16 @@
 """Setup script."""
 
-import os
+import pathlib
 
 from setuptools import setup
 
 
-with open(os.path.join(os.path.dirname(__file__), 'README.md'), 'r', encoding='utf-8') as f:
-    readme = f.read()
-
-with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), 'r', encoding='utf-8') as f:
-    install_requires = f.read().splitlines()
+readme = (pathlib.Path(__file__).parent / 'README.md').read_text(encoding='utf-8')
+install_requires = (pathlib.Path(__file__).parent / 'requirements.txt').read_text(encoding='utf-8').splitlines()
 
 setup(
     name='wsgirouter3',
-    version='0.8.1',
+    version='0.8.2',
     description='WSGI routing library',
     long_description=readme,
     long_description_content_type='text/markdown',
@@ -41,5 +38,5 @@ setup(
     license='MIT',
     py_modules=['wsgirouter3'],
     python_requires='>=3.7',
-    install_requires=install_requires
+    install_requires=install_requires,
 )

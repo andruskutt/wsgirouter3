@@ -1,3 +1,11 @@
+## 0.8.2 (2022-11-20)
+
+### Features
+
+* removed multipart/form-data support as cgi module is deprecated. Use external library for this
+* do not cache Request.form, Request.json, Request.method and Request.query_parameters properties
+* IntPathParameter matches value using isdecimal()
+
 ## 0.8.1 (2022-08-03)
 
 ### Features

@@ -10,7 +10,7 @@ install_requires = (pathlib.Path(__file__).parent / 'requirements.txt').read_tex
 
 setup(
     name='wsgirouter3',
-    version='0.8.2',
+    version='0.8.3',
     description='WSGI routing library',
     long_description=readme,
     long_description_content_type='text/markdown',

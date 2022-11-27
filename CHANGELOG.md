@@ -1,3 +1,9 @@
+## 0.8.3 (2022-11-28)
+
+### Features
+
+* fixed direct mapping path for subrouter root entry
+
 ## 0.8.2 (2022-11-20)
 
 ### Features

@@ -60,7 +60,7 @@ _CONTENT_ENCODING_GZIP: Final = 'gzip'
 _QUALITY_ZERO: Final = frozenset(('0', '0.0', '0.00', '0.000'))
 
 _STATUSES_WITHOUT_CONTENT: Final = frozenset(
-    (s for s in HTTPStatus if (s >= 100 and s < 200) or s in (HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED))
+    s for s in HTTPStatus if (s >= 100 and s < 200) or s in (HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED)
 )
 _STATUS_ROW_FROM_CODE: Final = {s.value: f'{s} {s.phrase}' for s in HTTPStatus}
 
@@ -722,10 +722,13 @@ class PathRouter:
             raise ValueError(f'{route_path}: duplicate subrouter')
 
         entry.subrouter = router
-        self.direct_mapping.update(
-            (route_path + (p if p.startswith(_PATH_SEPARATOR) else _PATH_SEPARATOR + p), e)
-            for p, e in router.direct_mapping.items()
-        )
+
+        def sub_path(prefix: str, path: str) -> str:
+            if path == _PATH_SEPARATOR:
+                return prefix
+            return prefix + (path if path.startswith(_PATH_SEPARATOR) else _PATH_SEPARATOR + path)
+
+        self.direct_mapping.update((sub_path(route_path, p), e) for p, e in router.direct_mapping.items())
 
     def parse_route_path(self,
                          route_path: str,

@@ -691,6 +691,25 @@ def test_direct_mapping():
     }
 
 
+def test_subrouter_direct_mapping():
+    def handler(value: str):
+        pass
+
+    router = PathRouter()
+    subrouter = PathRouter()
+    methods = ('GET',)
+    subpath = '/literal'
+
+    subrouter.add_route('/', methods, handler, defaults={'value': 'def'})
+    subrouter.add_route(subpath, methods, handler, defaults={'value': 'def'})
+
+    prefix = '/subpath'
+
+    router.add_subrouter(prefix, subrouter)
+    assert router.direct_mapping[prefix] == subrouter.root
+    assert router.direct_mapping[prefix + subpath] == subrouter.root[subpath[1:]]
+
+
 def test_get_routes():
     def handler(value: str):
         pass

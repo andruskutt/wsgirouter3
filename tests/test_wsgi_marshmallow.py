@@ -28,7 +28,7 @@ def binder(data, schema):
     try:
         return instance.load(data)
     except ValidationError as e:
-        raise HTTPError(HTTPStatus.UNPROCESSABLE_ENTITY, e.messages)
+        raise HTTPError(HTTPStatus.UNPROCESSABLE_ENTITY, e.messages) from None
 
 
 def json_serializer(data):

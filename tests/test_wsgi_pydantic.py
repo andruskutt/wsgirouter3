@@ -30,7 +30,7 @@ def binder(data, schema):
         raise HTTPError(
             HTTPStatus.UNPROCESSABLE_ENTITY,
             {'_errors': [{'loc': e['loc'], 'type': e['type']} for e in e.errors()]}
-        )
+        ) from None
 
 
 def json_serializer(data):

@@ -1,6 +1,6 @@
 flake8==5.0.4
 flake8-blind-except==0.2.1
-flake8-bugbear==22.10.27
+flake8-bugbear==22.12.6
 flake8-builtins==2.0.1
 flake8-comprehensions==3.10.1
 flake8-docstrings==1.6.0
@@ -12,7 +12,7 @@ dlint==0.13.0
 pytest==7.2.0
 pytest-cov==4.0.0
 # for testing different json serializer/deserializer
-orjson==3.8.1; implementation_name=="cpython"
+orjson==3.8.3; implementation_name=="cpython"
 # for testing of bindings
 marshmallow==3.19.0
 pydantic==1.10.2

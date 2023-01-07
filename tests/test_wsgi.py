@@ -155,8 +155,7 @@ def test_request_bad_form():
 
 
 def test_request_json():
-    env = {}
-    r = Request(None, env)
+    r = Request(None, {})
 
     with pytest.raises(HTTPError) as exc_info:
         r.json
@@ -165,6 +164,40 @@ def test_request_json():
     json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
     env = {
         'CONTENT_TYPE': 'application/json',
+        'wsgi.input': io.BytesIO(json_bytes),
+        'CONTENT_LENGTH': f'{len(json_bytes)}',
+    }
+    config = WsgiAppConfig()
+    config.json_deserializer = functools.partial(json.loads, cls=JSONDecoder)
+    r = Request(config, env)
+    assert r.json == {'A': 1, 'B': True, 'C': None, 'D': decimal.Decimal('0.1')}
+
+
+def test_request_json_suffix():
+    r = Request(None, {})
+
+    with pytest.raises(HTTPError) as exc_info:
+        r.json
+    assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
+
+    r = Request(None, {'CONTENT_TYPE': 'application/not-a-json'})
+    with pytest.raises(HTTPError) as exc_info:
+        r.json
+    assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
+
+    r = Request(None, {'CONTENT_TYPE': 'application/x.json'})
+    with pytest.raises(HTTPError) as exc_info:
+        r.json
+    assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
+
+    r = Request(None, {'CONTENT_TYPE': 'application/x.media-type+super-json'})
+    with pytest.raises(HTTPError) as exc_info:
+        r.json
+    assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
+
+    json_bytes = b'{"A": 1, "B": true, "C": null, "D": 0.1}'
+    env = {
+        'CONTENT_TYPE': 'application/x.media-type+json',
         'wsgi.input': io.BytesIO(json_bytes),
         'CONTENT_LENGTH': f'{len(json_bytes)}',
     }

@@ -38,8 +38,10 @@ _ACCEPT_ENCODING_HEADER: Final = 'Accept-Encoding'
 _CONTENT_ENCODING_HEADER: Final = 'Content-Encoding'
 _CONTENT_LENGTH_HEADER: Final = 'Content-Length'
 _CONTENT_TYPE_HEADER: Final = 'Content-Type'
-_CONTENT_TYPE_APPLICATION_JSON: Final = 'application/json'
-_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: Final = 'application/x-www-form-urlencoded'
+_CONTENT_TYPE_PREFIX_APPLICATION: Final = 'application/'
+_CONTENT_TYPE_SUFFIX_JSON: Final = '+json'
+_CONTENT_TYPE_APPLICATION_JSON: Final = _CONTENT_TYPE_PREFIX_APPLICATION + 'json'
+_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: Final = _CONTENT_TYPE_PREFIX_APPLICATION + 'x-www-form-urlencoded'
 _ETAG_HEADER: Final = 'ETag'
 _VARY_HEADER: Final = 'Vary'
 
@@ -154,6 +156,11 @@ class Request:
         # rfc3875 media-type parts type / subtype are case-insensitive
         return _parse_header(self.environ.get(_WSGI_CONTENT_TYPE_HEADER))
 
+    @property
+    def content_type_application_with_json_suffix(self) -> bool:
+        ct = self.content_type
+        return ct and ct.startswith(_CONTENT_TYPE_PREFIX_APPLICATION) and ct.endswith(_CONTENT_TYPE_SUFFIX_JSON)
+
     @cached_property
     def cookies(self) -> SimpleCookie:
         return SimpleCookie(self.environ.get('HTTP_COOKIE'))
@@ -187,7 +194,7 @@ class Request:
 
     @property
     def json(self) -> Any:
-        if self.content_type != _CONTENT_TYPE_APPLICATION_JSON:
+        if self.content_type != _CONTENT_TYPE_APPLICATION_JSON and not self.content_type_application_with_json_suffix:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
         try:

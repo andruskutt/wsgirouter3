@@ -1,3 +1,9 @@
+## 0.8.4 (2023-01-07)
+
+### Features
+
+* allow deserializing of application/json subtypes: application/some-subtype+json
+
 ## 0.8.3 (2022-11-28)
 
 ### Features

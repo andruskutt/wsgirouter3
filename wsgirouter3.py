@@ -159,7 +159,8 @@ class Request:
     @property
     def content_type_application_with_json_suffix(self) -> bool:
         ct = self.content_type
-        return ct and ct.startswith(_CONTENT_TYPE_PREFIX_APPLICATION) and ct.endswith(_CONTENT_TYPE_SUFFIX_JSON)
+        return ct is not None and ct.startswith(_CONTENT_TYPE_PREFIX_APPLICATION) \
+            and ct.split(';', 1)[0].rstrip().endswith(_CONTENT_TYPE_SUFFIX_JSON)
 
     @cached_property
     def cookies(self) -> SimpleCookie:

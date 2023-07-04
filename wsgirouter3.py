@@ -17,14 +17,13 @@ from dataclasses import asdict as dataclass_asdict, dataclass, field, is_datacla
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, Final, FrozenSet, List, Optional, Set, Tuple, Type, TypeVar, Union
 if sys.version_info >= (3, 9):
     from collections.abc import Callable, Iterable, Mapping
-    from typing import get_args, get_origin, get_type_hints, Annotated, Final
+    from typing import get_args, get_origin, get_type_hints, Annotated
 else:  # pragma: no cover
     from typing import Callable, Iterable, Mapping
-    # Final is supported starting from 3.8
-    from typing_extensions import get_args, get_origin, get_type_hints, Annotated, Final
+    from typing_extensions import get_args, get_origin, get_type_hints, Annotated
 from urllib.parse import parse_qsl
 from uuid import UUID
 

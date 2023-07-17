@@ -1,0 +1,44 @@
+[project]
+name = "wsgirouter3"
+version = "0.8.4"
+authors = [
+    {name = "Andrus Kütt", email = "andrus.kuett@gmail.com"},
+]
+description = "WSGI routing library"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["web services"]
+license = {file = "LICENSE"}
+classifiers = [
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+]
+dependencies = [
+    'typing_extensions>=3.7.4;python_version<"3.9"',
+]
+
+[project.urls]
+Repository = "https://github.com/andruskutt/wsgirouter3.git"
+Changelog = "https://github.com/andruskutt/wsgirouter3/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+py-modules = ["wsgirouter3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"

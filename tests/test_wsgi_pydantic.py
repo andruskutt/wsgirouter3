@@ -42,7 +42,7 @@ def start_response(status, headers):
 
 
 def endpoint(body: Body[AlbumSchema]) -> dict:
-    return body.dict()
+    return body.model_dump()
 
 
 def test_body_binding_json():
@@ -93,4 +93,4 @@ def test_body_binding_invalid_value_json():
 
     response = b''.join(app(env, start_response))
     assert returned_status == '422 Unprocessable Entity'
-    assert response == b'{"_errors": [{"loc": ["release_date"], "type": "value_error.date"}]}'
+    assert response == b'{"_errors": [{"loc": ["release_date"], "type": "date_from_datetime_parsing"}]}'

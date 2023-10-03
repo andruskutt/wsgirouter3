@@ -44,7 +44,7 @@ _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: Final = _CONTENT_TYPE_PREFIX_AP
 _ETAG_HEADER: Final = 'ETag'
 _VARY_HEADER: Final = 'Vary'
 
-_WEAK_VALIDATOR_PREFIX = 'W/'
+_WEAK_VALIDATOR_PREFIX: Final = 'W/'
 
 _WSGI_ACCEPT_ENCODING_HEADER: Final = 'HTTP_ACCEPT_ENCODING'
 _WSGI_ACCEPT_HEADER: Final = 'HTTP_ACCEPT'
@@ -83,7 +83,7 @@ RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
 
 _NO_POSITIONAL_ARGS: Final = ()
 
-_logger = logging.getLogger('wsgirouter3')
+_logger: Final = logging.getLogger('wsgirouter3')
 
 
 class cached_property:  # noqa: N801

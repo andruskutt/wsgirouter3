@@ -86,6 +86,7 @@ _NO_POSITIONAL_ARGS: Final = ()
 _logger: Final = logging.getLogger('wsgirouter3')
 
 
+# To be removed when python 3.12 is minimal supported version
 class cached_property:  # noqa: N801
     """
     Cached property implementation.

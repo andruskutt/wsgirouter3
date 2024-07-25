@@ -6,6 +6,7 @@ import functools
 import io
 import json
 import secrets
+import sys
 from http import HTTPStatus
 
 import pytest
@@ -897,11 +898,18 @@ def test_cached_property():
         assert a.calc1 == 42
     assert calc1_called == 1
 
-    with pytest.raises(RuntimeError, match='Error calling __set_name__') as exc:
-        class B:
-            calc2 = A.calc1
+    if sys.version_info >= (3, 12):
+        # Exceptions raised in a typeobject’s __set_name__ method are no longer wrapped by a RuntimeError.
+        # Context information is added to the exception as a PEP 678 note.
+        with pytest.raises(TypeError, match='Cannot assign the same cached_property to two different names'):
+            class B:
+                calc2 = A.calc1
+    else:
+        with pytest.raises(RuntimeError, match='Error calling __set_name__') as exc:
+            class B:
+                calc2 = A.calc1
 
-    assert isinstance(exc.value.__cause__, TypeError)
+        assert isinstance(exc.value.__cause__, TypeError)
 
     def calc():
         return 42

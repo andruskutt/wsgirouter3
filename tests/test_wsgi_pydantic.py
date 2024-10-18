@@ -92,5 +92,6 @@ def test_body_binding_invalid_value_json():
         returned_status = status
 
     response = b''.join(app(env, start_response))
-    assert returned_status == '422 Unprocessable Entity'
+    # XXX python 3.13 uses second variant
+    assert returned_status in ('422 Unprocessable Entity', '422 Unprocessable Content')
     assert response == b'{"_errors": [{"loc": ["release_date"], "type": "date_from_datetime_parsing"}]}'

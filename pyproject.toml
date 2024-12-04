@@ -6,7 +6,7 @@ authors = [
 ]
 description = "WSGI routing library"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords = ["web services"]
 license = {file = "LICENSE"}
 classifiers = [
@@ -18,16 +18,13 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
-]
-dependencies = [
-    'typing_extensions>=3.7.4;python_version<"3.9"',
 ]
 
 [project.urls]

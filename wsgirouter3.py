@@ -11,19 +11,13 @@ import inspect
 import json
 import logging
 import re
-import sys
 import zlib
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict as dataclass_asdict, dataclass, field, is_dataclass
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from types import GeneratorType
-from typing import Any, Dict, Final, FrozenSet, List, Optional, Set, Tuple, Type, TypeVar, Union
-if sys.version_info >= (3, 9):
-    from collections.abc import Callable, Iterable, Mapping
-    from typing import get_args, get_origin, get_type_hints, Annotated
-else:  # pragma: no cover
-    from typing import Callable, Iterable, Mapping
-    from typing_extensions import get_args, get_origin, get_type_hints, Annotated
+from typing import Annotated, Any, Final, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 from urllib.parse import parse_qsl
 from uuid import UUID
 
@@ -77,9 +71,9 @@ _NONE_TYPE: Final = type(None)
 F = TypeVar('F', bound=Callable[..., Any])
 T = TypeVar('T')
 
-WsgiEnviron = Dict[str, Any]
-WsgiHeaders = Dict[str, str]
-RouteDefinition = Tuple[Tuple[Union[str, 'PathParameter'], ...], str, Any]
+WsgiEnviron = dict[str, Any]
+WsgiHeaders = dict[str, str]
+RouteDefinition = tuple[tuple[Union[str, 'PathParameter'], ...], str, Any]
 
 _NO_POSITIONAL_ARGS: Final = ()
 
@@ -99,7 +93,7 @@ class cached_property:  # noqa: N801
         self.attrname: Optional[str] = None
         self.__doc__ = func.__doc__
 
-    def __set_name__(self, owner: Type[Any], name: str) -> None:
+    def __set_name__(self, owner: type[Any], name: str) -> None:
         if self.attrname is None:
             self.attrname = name
         elif name != self.attrname:
@@ -107,7 +101,7 @@ class cached_property:  # noqa: N801
                 f'Cannot assign the same cached_property to two different names ({self.attrname!r} and {name!r}).'
             )
 
-    def __get__(self, instance: Any, owner: Optional[Type[Any]] = None) -> Any:
+    def __get__(self, instance: Any, owner: Optional[type[Any]] = None) -> Any:
         if instance is None:
             return self
         if self.attrname is None:
@@ -119,7 +113,7 @@ class cached_property:  # noqa: N801
 
 
 class HTTPError(Exception):
-    def __init__(self, status: HTTPStatus, result: Any = None, headers: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, status: HTTPStatus, result: Any = None, headers: Optional[dict[str, Any]] = None) -> None:
         self.status = status
         self.result = status.description if result is None and status not in _STATUSES_WITHOUT_CONTENT else result
         self.headers = headers
@@ -185,7 +179,7 @@ class Request:
         return self.environ['wsgi.input'].read(content_length)
 
     @property
-    def form(self) -> Dict[str, str]:
+    def form(self) -> dict[str, str]:
         if self.content_type != _CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED:
             raise HTTPError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
 
@@ -204,7 +198,7 @@ class Request:
             raise HTTPError(HTTPStatus.BAD_REQUEST) from e
 
     @property
-    def query_parameters(self) -> Dict[str, str]:
+    def query_parameters(self) -> dict[str, str]:
         qs = self.environ.get(_WSGI_QUERY_STRING_HEADER)
         return _decode_url_encoded(qs)
 
@@ -216,9 +210,9 @@ class Request:
 @dataclass
 class WsgiAppConfig:
     before_request: Optional[Callable[[Request], None]] = None
-    after_request: Optional[Callable[[int, Dict[str, Any], WsgiEnviron], None]] = None
-    result_converters: List[
-        Tuple[Callable[[Any], bool], Callable[[Any, WsgiHeaders], Iterable[bytes]]]
+    after_request: Optional[Callable[[int, dict[str, Any], WsgiEnviron], None]] = None
+    result_converters: list[
+        tuple[Callable[[Any], bool], Callable[[Any, WsgiHeaders], Iterable[bytes]]]
     ] = field(default_factory=list)
     default_str_content_type: str = 'text/plain;charset=utf-8'
     max_request_content_length: Optional[int] = None
@@ -229,7 +223,7 @@ class WsgiAppConfig:
     def request_factory(self, environ: WsgiEnviron) -> Request:
         return Request(self, environ)
 
-    def result_handler(self, environ: WsgiEnviron, result: Any) -> Tuple[int, Iterable[bytes], WsgiHeaders]:
+    def result_handler(self, environ: WsgiEnviron, result: Any) -> tuple[int, Iterable[bytes], WsgiHeaders]:
         status = HTTPStatus.OK
         headers = {}
         if isinstance(result, tuple):
@@ -331,7 +325,7 @@ class WsgiAppConfig:
         # always utf-8: https://tools.ietf.org/html/rfc8259#section-8.1
         return json.dumps(obj).encode()
 
-    def binder(self, data: Any, result_type: Type[T]) -> T:
+    def binder(self, data: Any, result_type: type[T]) -> T:
         if not isinstance(data, result_type):
             raise HTTPError(HTTPStatus.BAD_REQUEST)
 
@@ -347,7 +341,7 @@ class WsgiApp:
         self.router = router
         self.config = config or WsgiAppConfig()
 
-    def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, List[tuple]], Any]) -> Iterable[bytes]:
+    def __call__(self, environ: WsgiEnviron, start_response: Callable[[str, list[tuple]], Any]) -> Iterable[bytes]:
         cache_control = None
 
         try:
@@ -387,7 +381,7 @@ class WsgiApp:
         start_response(_STATUS_ROW_FROM_CODE[status], [*response_headers.items()])
         return result
 
-    def bind_parameters(self, endpoint: 'Endpoint', path_parameters: Dict[str, Any], req: Request) -> Dict[str, Any]:
+    def bind_parameters(self, endpoint: 'Endpoint', path_parameters: dict[str, Any], req: Request) -> dict[str, Any]:
         kwargs = path_parameters if endpoint.defaults is None else {**endpoint.defaults, **path_parameters}
         query_binding = endpoint.query_binding
         if query_binding is not None:
@@ -449,15 +443,15 @@ class Endpoint:
     def __init__(self, handler: Callable[..., Any],
                  defaults: Optional[Mapping[str, Any]], options: Any,
                  consumes: Union[str, Iterable[str], None], produces: Optional[str],
-                 query_binding: Optional[Tuple[str, Any]],
-                 body_binding: Optional[Tuple[str, Any]],
-                 request_binding: Optional[Tuple[str, Any]],
+                 query_binding: Optional[tuple[str, Any]],
+                 body_binding: Optional[tuple[str, Any]],
+                 request_binding: Optional[tuple[str, Any]],
                  cache_control: Optional[CacheControl]) -> None:
         self.handler = handler
         self.defaults = dict(defaults) if defaults else None
         self.options = options
         if consumes:
-            self.consumes: Optional[FrozenSet[str]] = frozenset((consumes,) if isinstance(consumes, str) else consumes)
+            self.consumes: Optional[frozenset[str]] = frozenset((consumes,) if isinstance(consumes, str) else consumes)
         else:
             self.consumes = None
         self.produces = produces
@@ -471,9 +465,9 @@ class PathEntry:
     __slots__ = ('mapping', 'parameter', 'methodmap', 'subrouter')
 
     def __init__(self) -> None:
-        self.mapping: Dict[str, 'PathEntry'] = {}
+        self.mapping: dict[str, 'PathEntry'] = {}
         self.parameter: Optional['PathParameter'] = None
-        self.methodmap: Dict[str, Endpoint] = {}
+        self.methodmap: dict[str, Endpoint] = {}
         self.subrouter: Optional['PathRouter'] = None
 
     def __getitem__(self, path_segment: str) -> 'PathEntry':
@@ -519,7 +513,7 @@ class PathParameter(PathEntry):
         """Return True if path segment matches parameter definition."""
         return False
 
-    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
+    def accept(self, kwargs: dict[str, Any], path_segment: str) -> None:
         """Update kwargs with parameter parsing result."""
 
 
@@ -528,7 +522,7 @@ class BoolPathParameter(PathParameter):
     def match(self, path_segment: str) -> bool:
         return path_segment in _BOOL_VALUES
 
-    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
+    def accept(self, kwargs: dict[str, Any], path_segment: str) -> None:
         kwargs[self.name] = path_segment in _BOOL_TRUE_VALUES
 
 
@@ -537,7 +531,7 @@ class IntPathParameter(PathParameter):
     def match(self, path_segment: str) -> bool:
         return bool(path_segment and (path_segment[1:] if path_segment[0] == '-' else path_segment).isdecimal())
 
-    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
+    def accept(self, kwargs: dict[str, Any], path_segment: str) -> None:
         kwargs[self.name] = int(path_segment)
 
 
@@ -547,7 +541,7 @@ class StringPathParameter(PathParameter):
         # do not allow zero-length strings
         return bool(path_segment)
 
-    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
+    def accept(self, kwargs: dict[str, Any], path_segment: str) -> None:
         # XXX should decode path segment?
         kwargs[self.name] = path_segment
 
@@ -559,7 +553,7 @@ class UUIDPathParameter(PathParameter):
     def match(self, path_segment: str) -> bool:
         return UUIDPathParameter.matcher(path_segment) is not None
 
-    def accept(self, kwargs: Dict[str, Any], path_segment: str) -> None:
+    def accept(self, kwargs: dict[str, Any], path_segment: str) -> None:
         kwargs[self.name] = UUID(path_segment)
 
 
@@ -576,17 +570,17 @@ class PathRouter:
     path_parameter_start: str = '{'
     path_parameter_end: Optional[str] = '}'
     # handler parameter types to be injected with request wrapper created by config.request_factory
-    supported_request_types: Set[Type[Request]] = {Request}
+    supported_request_types: set[type[Request]] = {Request}
 
     def __init__(self) -> None:
         self.root = PathEntry()
-        self.parameter_types = _DEFAULT_PARAMETER_TYPE_MAP.copy()
+        self.parameter_types: dict[Any, type[PathParameter]] = _DEFAULT_PARAMETER_TYPE_MAP.copy()
         self.default_options = None
-        self.direct_mapping: Dict[str, PathEntry] = {}
+        self.direct_mapping: dict[str, PathEntry] = {}
 
-    def __call__(self, environ: WsgiEnviron) -> Tuple[Endpoint, Dict[str, Any]]:
+    def __call__(self, environ: WsgiEnviron) -> tuple[Endpoint, dict[str, Any]]:
         """Route resolver."""
-        path_parameters: Dict[str, Any] = {}
+        path_parameters: dict[str, Any] = {}
         route_path = environ[_WSGI_PATH_INFO_HEADER]
         entry = self.direct_mapping.get(route_path)
         if entry is None:
@@ -741,9 +735,9 @@ class PathRouter:
     def parse_route_path(self,
                          route_path: str,
                          signature: Optional[inspect.Signature],
-                         type_hints: Optional[Mapping[str, Any]]) -> Tuple[PathEntry, Set[str]]:
+                         type_hints: Optional[Mapping[str, Any]]) -> tuple[PathEntry, set[str]]:
         entry = self.root
-        parameter_names: Set[str] = set()
+        parameter_names: set[str] = set()
 
         if route_path == _PATH_SEPARATOR:
             return entry, parameter_names
@@ -782,7 +776,7 @@ class PathRouter:
                         parameter: str,
                         route_path: str,
                         signature: inspect.Signature,
-                        type_hints: Mapping[str, Any]) -> Tuple[Type[PathParameter], str]:
+                        type_hints: Mapping[str, Any]) -> tuple[type[PathParameter], str]:
         suffix_length = -len(self.path_parameter_end) if self.path_parameter_end else None
         parameter_name = parameter[len(self.path_parameter_start):suffix_length]
         if not parameter_name or (self.path_parameter_end and not parameter.endswith(self.path_parameter_end)):
@@ -811,10 +805,10 @@ class PathRouter:
 
     def get_binding_parameter(self,
                               route_path: str,
-                              parameter_names: Set[str],
-                              parameters: List[inspect.Parameter],
+                              parameter_names: set[str],
+                              parameters: list[inspect.Parameter],
                               type_hints: Mapping[str, Any],
-                              binding_type: Any) -> Optional[Tuple[str, Any]]:
+                              binding_type: Any) -> Optional[tuple[str, Any]]:
         is_request_binding = binding_type is Request
         if is_request_binding:
             bindings = [p for p in parameters if type_hints.get(p.name) in self.supported_request_types]
@@ -839,9 +833,9 @@ class PathRouter:
 
     def verify_defaults(self,
                         route_path: str,
-                        parameter_names: Set[str],
+                        parameter_names: set[str],
                         defaults: Mapping[str, Any],
-                        parameters: List[inspect.Parameter],
+                        parameters: list[inspect.Parameter],
                         type_hints: Mapping[str, Any]) -> None:
         unused = parameter_names.intersection(defaults)
         if unused:
@@ -873,7 +867,7 @@ class PathRouter:
             )
 
     def get_routes(self) -> Iterable[RouteDefinition]:
-        def walk_children(path: List[Union[str, PathParameter]],
+        def walk_children(path: list[Union[str, PathParameter]],
                           path_segment: Union[str, PathParameter],
                           entry: PathEntry) -> Iterable[RouteDefinition]:
             path.append(path_segment)
@@ -882,7 +876,7 @@ class PathRouter:
             finally:
                 path.pop()
 
-        def walk_route_tree(path: List[Union[str, PathParameter]], entry: PathEntry) -> Iterable[RouteDefinition]:
+        def walk_route_tree(path: list[Union[str, PathParameter]], entry: PathEntry) -> Iterable[RouteDefinition]:
             if entry.methodmap:
                 current_path = tuple(path)
                 for method, endpoint in entry.methodmap.items():
@@ -919,12 +913,12 @@ def _parse_header_with_quality(header: str) -> Optional[str]:
     return header_parts[0].strip().lower()
 
 
-def _split_route_path(route_path: str) -> List[str]:
+def _split_route_path(route_path: str) -> list[str]:
     path_segments = route_path.split(_PATH_SEPARATOR)
     return path_segments[1:] if route_path.startswith(_PATH_SEPARATOR) else path_segments
 
 
-def _decode_url_encoded(url: Optional[str]) -> Dict[str, str]:
+def _decode_url_encoded(url: Optional[str]) -> dict[str, str]:
     if not url:
         return {}
 

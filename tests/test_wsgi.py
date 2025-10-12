@@ -32,7 +32,7 @@ def _http_status_response(status: HTTPStatus) -> str:
 
 def test_request():
     env = {'REQUEST_METHOD': 'GET'}
-    r = Request(None, env)
+    r = Request(WsgiAppConfig(), env)
 
     assert r.content_type is None
     assert r.content_length == 0
@@ -43,7 +43,7 @@ def test_request():
 
 def test_request_bad_content_length():
     env = {'CONTENT_LENGTH': '-2'}
-    r = Request(None, env)
+    r = Request(WsgiAppConfig(), env)
 
     assert r.content_length == -2
     with pytest.raises(HTTPError) as exc_info:
@@ -55,14 +55,14 @@ def test_request_query_string():
     field_name = 'abc'
     field_value = 'def'
     env = {'REQUEST_METHOD': 'GET', 'QUERY_STRING': f'{field_name}={field_value}'}
-    r = Request(None, env)
+    r = Request(WsgiAppConfig(), env)
     qp = r.query_parameters
     assert qp[field_name] == field_value
 
 
 def test_request_bad_query_string():
     env = {'REQUEST_METHOD': 'GET', 'QUERY_STRING': 'abc'}
-    r = Request(None, env)
+    r = Request(WsgiAppConfig(), env)
     with pytest.raises(HTTPError) as exc_info:
         r.query_parameters
     assert exc_info.value.args[0] == HTTPStatus.BAD_REQUEST
@@ -70,7 +70,7 @@ def test_request_bad_query_string():
 
 def test_request_invalid_content_length():
     env = {'CONTENT_LENGTH': 'abc'}
-    r = Request(None, env)
+    r = Request(WsgiAppConfig(), env)
 
     with pytest.raises(HTTPError) as exc_info:
         r.content_length
@@ -79,7 +79,7 @@ def test_request_invalid_content_length():
 
 def test_request_missing_content_length():
     env = {'REQUEST_METHOD': 'GET'}
-    r = Request(None, env)
+    r = Request(WsgiAppConfig(), env)
 
     assert r.content_length == 0
     with pytest.raises(HTTPError) as exc_info:
@@ -100,7 +100,7 @@ def test_request_max_request_content_length():
 
 def test_request_body():
     env = {'REQUEST_METHOD': 'GET', 'CONTENT_LENGTH': '0'}
-    r = Request(None, env)
+    r = Request(WsgiAppConfig(), env)
 
     assert r.content_length == 0
     assert r.body == b''
@@ -156,7 +156,7 @@ def test_request_bad_form():
 
 
 def test_request_json():
-    r = Request(None, {})
+    r = Request(WsgiAppConfig(), {})
 
     with pytest.raises(HTTPError) as exc_info:
         r.json
@@ -175,28 +175,29 @@ def test_request_json():
 
 
 def test_request_json_suffix():
-    r = Request(None, {})
+    conf = WsgiAppConfig()
+    r = Request(conf, {})
 
     with pytest.raises(HTTPError) as exc_info:
         r.json
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
 
-    r = Request(None, {'CONTENT_TYPE': 'application/not-a-json'})
+    r = Request(conf, {'CONTENT_TYPE': 'application/not-a-json'})
     with pytest.raises(HTTPError) as exc_info:
         r.json
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
 
-    r = Request(None, {'CONTENT_TYPE': 'application/x.json'})
+    r = Request(conf, {'CONTENT_TYPE': 'application/x.json'})
     with pytest.raises(HTTPError) as exc_info:
         r.json
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
 
-    r = Request(None, {'CONTENT_TYPE': 'application/html; parameter=html+json'})
+    r = Request(conf, {'CONTENT_TYPE': 'application/html; parameter=html+json'})
     with pytest.raises(HTTPError) as exc_info:
         r.json
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
 
-    r = Request(None, {'CONTENT_TYPE': 'application/x.media-type+super-json'})
+    r = Request(conf, {'CONTENT_TYPE': 'application/x.media-type+super-json'})
     with pytest.raises(HTTPError) as exc_info:
         r.json
     assert exc_info.value.args[0] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
@@ -522,7 +523,7 @@ def test_response_compression_with_etag():
     etag = '"abc"'
 
     @router.get(url)
-    def json_endpoint() -> dict:
+    def json_endpoint() -> tuple[int, dict, dict]:
         return 200, {'a': 1, 'b': secrets.token_hex(strlen)}, {'ETag': etag}
 
     app = WsgiApp(router)

@@ -3,6 +3,7 @@
 import io
 import json
 from http import HTTPStatus
+from typing import Any
 
 from marshmallow import Schema, ValidationError, fields
 
@@ -19,20 +20,20 @@ class AlbumSchema(Schema):
     artist = fields.Nested(ArtistSchema())
 
 
-def binder(data, schema):
+def binder(data: Any, result_type):
     if not isinstance(data, dict):
         raise HTTPError(HTTPStatus.BAD_REQUEST)
 
     # XXX https://github.com/marshmallow-code/marshmallow/issues/783
-    instance = schema()
+    instance = result_type()
     try:
         return instance.load(data)
     except ValidationError as e:
         raise HTTPError(HTTPStatus.UNPROCESSABLE_ENTITY, e.messages) from None
 
 
-def json_serializer(data):
-    return json.dumps(data, default=str).encode()
+def json_serializer(obj: Any) -> bytes:
+    return json.dumps(obj, default=str).encode()
 
 
 def start_response(status, headers):

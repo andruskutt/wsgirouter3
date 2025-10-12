@@ -601,7 +601,7 @@ def test_subrouter():
         router.add_subrouter('/trailing-separator/', subrouter)
 
     with pytest.raises(ValueError, match='duplicate subrouter'):
-        router.add_subrouter(prefix1, handler)
+        router.add_subrouter(prefix1, subrouter)
 
     url = '/abc'
     environ = {'REQUEST_METHOD': methods[0], 'PATH_INFO': url}

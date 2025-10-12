@@ -181,7 +181,29 @@ def test_bad_path_parameter_implementation():
         raise AssertionError('Cannot happen')
 
     environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url.format(value=3.0)}
-    with pytest.raises(NotFoundError):
+    with pytest.raises(NotImplementedError):
+        r(environ)
+
+
+def test_partially_bad_path_parameter_implementation():
+    r = PathRouter()
+
+    class PartiallyBadPathParameterImplementation(PathParameter):
+        """No accept override."""
+
+        def match(self, path_segment: str) -> bool:
+            return True
+
+    r.parameter_types[float] = PartiallyBadPathParameterImplementation
+
+    url = '/{value}'
+
+    @r.get(url)
+    def handler(value: float):
+        raise AssertionError('Cannot happen')
+
+    environ = {'REQUEST_METHOD': 'GET', 'PATH_INFO': url.format(value=3.0)}
+    with pytest.raises(NotImplementedError):
         r(environ)
 
 

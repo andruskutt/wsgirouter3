@@ -511,10 +511,11 @@ class PathParameter(PathEntry):
 
     def match(self, path_segment: str) -> bool:
         """Return True if path segment matches parameter definition."""
-        return False
+        raise NotImplementedError
 
     def accept(self, kwargs: dict[str, Any], path_segment: str) -> None:
         """Update kwargs with parameter parsing result."""
+        raise NotImplementedError
 
 
 class BoolPathParameter(PathParameter):

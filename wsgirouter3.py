@@ -648,6 +648,7 @@ class PathRouter:
     patch = functools.partialmethod(route, methods=('PATCH',))
     post = functools.partialmethod(route, methods=('POST',))
     put = functools.partialmethod(route, methods=('PUT',))
+    query = functools.partialmethod(route, methods=('QUERY',))
 
     def add_route(self,
                   route_path: str,

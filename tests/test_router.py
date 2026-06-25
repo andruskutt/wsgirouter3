@@ -247,6 +247,7 @@ def test_method_shortcuts():
     r.patch(url)(handler)
     r.post(url)(handler)
     r.put(url)(handler)
+    r.query(url)(handler)
 
 
 def test_add_bad_routes():

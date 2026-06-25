@@ -12,7 +12,7 @@ Request body and query string binding is also supported, using generic types Bod
 
 Supports overlapping path segments: zero or more literal segments can overlap with one parameter definition. Parameters of different type and/or name in same position are not supported. Literal segment takes precedence.
 
-Route decorators for HTTP methods DELETE, GET, PATCH, POST, PUT.
+Route decorators for HTTP methods DELETE, GET, PATCH, POST, PUT, QUERY.
 
 Response compression. By default enabled for application/json. Configurable compression level.
 
